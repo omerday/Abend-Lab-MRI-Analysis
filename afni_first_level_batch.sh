@@ -40,7 +40,7 @@ while true; do
       echo "  -i, --input     Specify the location of the input."
       echo "  -o, --output    Specify the location of the output."
       echo "  -s, --session   Specify the session number."
-      echo "  -w, --warper    Use SSWarper"
+      echo "  -w, --warper    Use SSWarper."
       echo "  -n, --num_proc  Specify the number of processors to use."
       echo "  --subjects       Specify a comma-separated list of subject IDs."
       echo
@@ -63,7 +63,7 @@ while true; do
         shift 2
         ;;
     --subjects)
-        subject_ids+=("$2") # Append the subject ID to the array
+        IFS=',' read -ra subject_ids <<< "$2" # Append the subject ID to the array
         echo "++Subject IDs: ${subject_ids[@]}"
         shift 2
         ;;
