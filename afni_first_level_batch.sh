@@ -1,5 +1,8 @@
 #!/bin/bash
 
+echo "Starting first level analysis script"
+echo "Please note, this script should only be run with bash"
+
 OPTIND=1
 
 # Define the short and long options
