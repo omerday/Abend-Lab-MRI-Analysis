@@ -33,7 +33,7 @@ num_jobs=0
 while true; do
   case ${1} in
     -h|--help)
-      echo "Usage: $0 [i input_folder] [o output_folder] [-s session] [-w] [-n <nprocs>] --subjects <sub1,sub2,...> sub-??*"
+      echo "Usage: $0 [-i input_folder] [-o output_folder] [-s session] [-w] [-n <nprocs>] --subjects <sub1,sub2,...> sub-??*"
       echo
       echo "Options:"
       echo "  -h, --help      Show this help message and exit."
