@@ -50,7 +50,7 @@ while true; do
       echo "  --subjects       Specify a comma-separated list of subject IDs."
       echo
       echo "Example:"
-      echo "  $0 -s 2 --subject sub-001,sub-003,sub-005 -w /path/to/warper_output"
+      echo "  $0 -s 2 --subjects sub-001,sub-003,sub-005 --output /path/to/output"
       exit 1
       ;;
     -s|--session)
@@ -120,8 +120,7 @@ task() {
     fi
 
     echo "Preparing timing files for subject ${1}"
-    echo ${1} > subjList.txt
-    sh convert_event_onset_files.sh -s ${session}
+    bash convert_event_onset_files.sh -s ${session} --subject ${1} --input ${input_folder}
 
     if [ $compute_sswarper = true ]; then
     echo "Running SSWarper on ${1}"
@@ -172,10 +171,10 @@ task() {
             ${input_folder}/${1}/$session_prefix/anat_warped/anatQQ.${1}.aff12.1D \
             ${input_folder}/${1}/$session_prefix/anat_warped/anatQQ.${1}_WARP.nii \
         -regress_stim_times       \
-            ${input_folder}/${1}/$session_prefix/func/negative_block.1D \
-            ${input_folder}/${1}/$session_prefix/func/positive_block.1D \
-            ${input_folder}/${1}/$session_prefix/func/neutral_block.1D \
-            ${input_folder}/${1}/$session_prefix/func/rest.1D \
+            ${input_folder}/${1}/$session_prefix/func/timings/negative_block.1D \
+            ${input_folder}/${1}/$session_prefix/func/timings/positive_block.1D \
+            ${input_folder}/${1}/$session_prefix/func/timings/neutral_block.1D \
+            ${input_folder}/${1}/$session_prefix/func/timings/rest.1D \
         -regress_stim_labels      neg_blck pos_blck neut_blck rest   \
         #TODO: Try and use regress_stim_times
         -regress_basis            'BLOCK(22,1)' \

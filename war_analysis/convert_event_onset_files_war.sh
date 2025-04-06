@@ -59,18 +59,6 @@ while true; do
     esac
 done
 
-while getopts "hs:" opt; do
-    case "$opt" in
-    h)
-        echo "Usage: $0 [-s session]"
-        exit 1
-        ;;
-    s)
-        session=$OPTARG
-        echo "++Session mentioned is $session"
-    esac
-done
-
 cd ${input_folder}/${subj}/ses-${session}/func
 if [ -f timings ]; then
     rm -r timings
