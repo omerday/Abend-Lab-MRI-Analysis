@@ -93,19 +93,6 @@ fi
 
 task() {
     echo "Started running for ${subj} with PID $PID"
-    echo "Preparing timing files for subject ${1}"
-    echo ${1} > subjList.txt
-    sh convert_event_onset_files.sh -s ${session}
-
-    if [ $compute_sswarper = true ]; then
-    echo "Running SSWarper on ${1}"
-    @SSwarper -input ${input_folder}/${1}/$session_prefix/anat/${1}_${session_prefix}_T1w.nii.gz \
-            -base MNI152_2009_template_SSW.nii.gz \
-            -subid ${1} -odir ${input_folder}/${1}/$session_prefix/anat_warped \
-            -giant_move \
-            -cost_nl_final lpa \
-            -minp 8
-    fi
 
     echo "Moving previous outputs for subject"
     time=`date +"%H"`.`date +%M`
@@ -125,6 +112,20 @@ task() {
         if [ -f output.proc.${1} ]; then
             rm output.proc.${1}
         fi
+    fi
+
+    echo "Preparing timing files for subject ${1}"
+    echo ${1} > subjList.txt
+    sh convert_event_onset_files.sh -s ${session}
+
+    if [ $compute_sswarper = true ]; then
+    echo "Running SSWarper on ${1}"
+    @SSwarper -input ${input_folder}/${1}/$session_prefix/anat/${1}_${session_prefix}_T1w.nii.gz \
+            -base MNI152_2009_template_SSW.nii.gz \
+            -subid ${1} -odir ${input_folder}/${1}/$session_prefix/anat_warped \
+            -giant_move \
+            -cost_nl_final lpa \
+            -minp 8
     fi
 
     echo "Running afni_proc.py for subject ${1}"
