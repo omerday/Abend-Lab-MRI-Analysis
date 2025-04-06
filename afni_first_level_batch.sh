@@ -1,35 +1,92 @@
 #!/bin/bash
 
 OPTIND=1
+
+# Define the short and long options
+short_options="hs:wn:i:o:"
+long_options="help,session:,warper,num_proc:,subjects:,input:,output:"
+# Parse the options using getopt
+parsed=$(getopt -o "$short_options" -l "$long_options" -- "$@")
+
+# Check if getopt was successful
+if [ $? -ne 0 ]; then
+  echo "Error parsing options." >&2
+  exit 1
+fi
+
+# Set the positional parameters to the parsed options and arguments
+eval set -- "$parsed"
+
+input_folder=""
+output_folder=""
+
+subject_ids=()
+
 #Indicate the session that needs to be analysed
 session=1
+session_prefix=""
 num_procs=1
 compute_sswarper=false
 num_jobs=0
 
-while getopts "hs:wn:" opt; do
-    case "$opt" in
-    h)
-        echo "Usage: $0 [-s session] [-w] [-n nprocs] sub-??*"
-        exit 1
+# Loop through the options
+while true; do
+  case "$1" in
+    -h|--help)
+      echo "Usage: $0 [i input_folder] [o output_folder] [-s session] [-w] [-n <nprocs>] --subjects <sub1,sub2,...> sub-??*"
+      echo
+      echo "Options:"
+      echo "  -h, --help      Show this help message and exit."
+      echo "  -i, --input     Specify the location of the input."
+      echo "  -o, --output    Specify the location of the output."
+      echo "  -s, --session   Specify the session number."
+      echo "  -w, --warper    Use SSWarper"
+      echo "  -n, --num_proc  Specify the number of processors to use."
+      echo "  --subjects       Specify a comma-separated list of subject IDs."
+      echo
+      echo "Example:"
+      echo "  $0 -s 2 --subject sub-001,sub-003,sub-005 -w /path/to/warper_output"
+      exit 1
+      ;;
+    -s|--session)
+      session=$2
+      session_prefix="ses-$session"
+      echo "++Session mentioned is $session"
+      shift 2
+      ;;
+    -w|--warper)
+      compute_sswarper=true
+      shift
+      ;;
+    -n|--num_proc)
+        num_proc=$2
+        shift 2
         ;;
-    w)
-        compute_sswarper=true
-        echo "++Set to compute SSWarper"
+    --subjects)
+        subject_ids+=("$2") # Append the subject ID to the array
+        echo "++Subject IDs: ${subject_ids[@]}"
+        shift 2
         ;;
-    s)
-        session=$OPTARG
-        echo "++Session mentioned is $session"
+    -i|--input)
+        input_folder=$2
+        shift 2
         ;;
-    n)
-        num_procs=$OPTARG
-        echo "++Running $num_procs processes in parallel"
-    esac
+    -o|--output)
+        output_folder=$2
+        shift 2
+        ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
 done
 
-shift $((OPTIND - 1))
-
-if [ "$#" -eq 0 ]; then
+if [ ${#subject_ids[@]} -eq 0 ]; then
     echo "No subjects provided"
     exit 1
 fi
@@ -144,11 +201,11 @@ task() {
 }
 
 if [ $num_procs -eq 1 ]; then
-    for subj in "$@"; do
+    for subj in $subject_ids; do
         task "$subj" > ${subj}.txt
     done
 else
-    for subj in "$@"; do
+    for subj in $subject_ids; do
         while [ $num_jobs -ge $num_procs ]; do
             wait -n
         done
