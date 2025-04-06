@@ -31,7 +31,7 @@ num_jobs=0
 
 # Loop through the options
 while true; do
-  case "$1" in
+  case ${1} in
     -h|--help)
       echo "Usage: $0 [i input_folder] [o output_folder] [-s session] [-w] [-n <nprocs>] --subjects <sub1,sub2,...> sub-??*"
       echo
@@ -93,15 +93,15 @@ fi
 
 task() {
     echo "Started running for ${subj} with PID $PID"
-    echo "Preparing timing files for subject "$1""
-    echo "$1" > subjList.txt
+    echo "Preparing timing files for subject ${1}"
+    echo ${1} > subjList.txt
     sh convert_event_onset_files.sh -s ${session}
 
     if [ $compute_sswarper = true ]; then
-    echo "Running SSWarper on "$1""
-    @SSwarper -input "$1"/ses-${session}/anat/"$1"_ses-${session}_T1w.nii.gz \
+    echo "Running SSWarper on ${1}"
+    @SSwarper -input ${input_folder}/${1}/$session_prefix/anat/${1}_${session_prefix}_T1w.nii.gz \
             -base MNI152_2009_template_SSW.nii.gz \
-            -subid "$1" -odir "$1"/ses-${session}/anat_warped \
+            -subid ${1} -odir ${input_folder}/${1}/$session_prefix/anat_warped \
             -giant_move \
             -cost_nl_final lpa \
             -minp 8
@@ -109,39 +109,39 @@ task() {
 
     echo "Moving previous outputs for subject"
     time=`date +"%H"`.`date +%M`
-    old_results_path="$1".ses-"$session".results
-    if [ -f old_results_path ]; then
-        if [ -f proc."$1" ]; then
-        mv proc."$1" ${old_results_path}
+    old_results_path=${1}.$session_prefix.results
+    if [ -f "${output_folder}/$old_results_path" ]; then
+        if [ -f proc.${1} ]; then
+            mv ${output_folder}/proc.${1} ${output_folder}/${old_results_path}
         fi
-        if [ -f output.proc."$1" ]; then
-            mv output.proc."$1" ${old_results_path}
+        if [ -f "${output_folder}/output.proc.${1}" ]; then
+            mv ${output_folder}/output.proc.${1} ${output_folder}/${old_results_path}
         fi
-        mv ${old_results_path} old_results/${old_results_path}.old.${time}
+        mv ${output_folder}/${old_results_path} ${output_folder}/old_results/${old_results_path}.old.${time}
     else
-        if [ -f proc."$1" ]; then
-            rm proc."$1"
+        if [ -f proc.${1} ]; then
+            rm proc.${1}
         fi
-        if [ -f output.proc."$1" ]; then
-            rm output.proc."$1"
+        if [ -f output.proc.${1} ]; then
+            rm output.proc.${1}
         fi
     fi
 
-    echo "Running afni_proc.py for subject "$1""
+    echo "Running afni_proc.py for subject ${1}"
     afni_proc.py \
-        -subj_id "$1" \
+        -subj_id ${1} \
         -dsets_me_run \
-            "$1"/ses-${session}/func/"$1"_ses-${session}_task-war_run-1_echo-1_bold.nii.gz \
-            "$1"/ses-${session}/func/"$1"_ses-${session}_task-war_run-1_echo-2_bold.nii.gz \
-            "$1"/ses-${session}/func/"$1"_ses-${session}_task-war_run-1_echo-3_bold.nii.gz \
+            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-1_echo-1_bold.nii.gz \
+            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-1_echo-2_bold.nii.gz \
+            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-1_echo-3_bold.nii.gz \
         -echo_times 13.6 25.96 38.3 \
         -dsets_me_run \
-            "$1"/ses-${session}/func/"$1"_ses-${session}_task-war_run-2_echo-1_bold.nii.gz \
-            "$1"/ses-${session}/func/"$1"_ses-${session}_task-war_run-2_echo-2_bold.nii.gz \
-            "$1"/ses-${session}/func/"$1"_ses-${session}_task-war_run-2_echo-3_bold.nii.gz \
+            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-2_echo-1_bold.nii.gz \
+            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-2_echo-2_bold.nii.gz \
+            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-2_echo-3_bold.nii.gz \
         -echo_times 13.6 25.96 38.3 \
         -copy_anat \
-            "$1"/ses-${session}/anat/"$1"_ses-${session}_T1w.nii.gz \
+            ${input_folder}/${1}/$session_prefix/anat/${1}_$session_prefix_T1w.nii.gz \
         -blocks \
             tshift align tlrc volreg mask blur scale combine regress \
         -mask_epi_anat yes \
@@ -162,14 +162,14 @@ task() {
         -tlrc_base MNI152_2009_template.nii.gz \
         -tlrc_NL_warp \
         -tlrc_NL_warped_dsets \
-            "$1"/ses-${session}/anat_warped/anatQQ."$1".nii \
-            "$1"/ses-${session}/anat_warped/anatQQ."$1".aff12.1D \
-            "$1"/ses-${session}/anat_warped/anatQQ."$1"_WARP.nii \
+            ${input_folder}/${1}/$session_prefix/anat_warped/anatQQ.${1}.nii \
+            ${input_folder}/${1}/$session_prefix/anat_warped/anatQQ.${1}.aff12.1D \
+            ${input_folder}/${1}/$session_prefix/anat_warped/anatQQ.${1}_WARP.nii \
         -regress_stim_times       \
-            "$1"/ses-${session}/func/negative_block.1D \
-            "$1"/ses-${session}/func/positive_block.1D \
-            "$1"/ses-${session}/func/neutral_block.1D \
-            "$1"/ses-${session}/func/rest.1D \
+            ${input_folder}/${1}/$session_prefix/func/negative_block.1D \
+            ${input_folder}/${1}/$session_prefix/func/positive_block.1D \
+            ${input_folder}/${1}/$session_prefix/func/neutral_block.1D \
+            ${input_folder}/${1}/$session_prefix/func/rest.1D \
         -regress_stim_labels      neg_blck pos_blck neut_blck rest   \
         #TODO: Try and use regress_stim_times
         -regress_basis            'BLOCK(22,1)' \
@@ -194,9 +194,9 @@ task() {
         -regress_run_clustsim     no                                     \
         -execute           
         #TODO: Multiply GM with the activity, and run clustsim on the result (Maybe post-script?)                                               
-    echo "Done running afni_proc.py for subject "$1""
+    echo "Done running afni_proc.py for subject ${1}"
     echo "Moving results to sub-folder by session"
-    mv "$1".results "$1".ses-"$session".results
+    mv ${1}.results ${output_folder}/${1}.$session_prefix.results
     echo "Done"
 }
 
