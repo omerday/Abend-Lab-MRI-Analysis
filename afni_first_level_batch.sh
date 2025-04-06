@@ -2,6 +2,8 @@
 
 echo "Starting first level analysis script"
 echo "Please note, this script should only be run with bash"
+echo "====================================================="
+echo ""
 
 OPTIND=1
 
