@@ -74,10 +74,12 @@ while true; do
         ;;
     -i|--input)
         input_folder=$2
+        echo "++Input folder: ${input_folder}"
         shift 2
         ;;
     -o|--output)
         output_folder=$2
+        echo "++Output folder: ${output_folder}"
         shift 2
         ;;
     --)
