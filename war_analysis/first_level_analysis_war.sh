@@ -176,7 +176,7 @@ task() {
             ${input_folder}/${1}/$session_prefix/func/timings/neutral_block.1D \
             ${input_folder}/${1}/$session_prefix/func/timings/rest.1D \
         -regress_stim_labels      neg_blck pos_blck neut_blck rest   \
-        -regress_basis            'BLOCK(22,1)' \ 
+        -regress_basis            'BLOCK(22,1)' \
         -regress_opts_3dD \
             -jobs 8 \
             -gltsym 'SYM: neg_blck -neut_blck' \
