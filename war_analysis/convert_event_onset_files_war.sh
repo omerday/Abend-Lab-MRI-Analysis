@@ -62,6 +62,7 @@ done
 cd ${input_folder}/${subj}/ses-${session}/func
 if [ -f timings ]; then
     rm -r timings
+fi
 mkdir timings
 
 cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2==31 || $2==32 || $2==33 || $2==34) {print $1 - 10, $4, 1}}' > timings/negative_image_run1.txt
