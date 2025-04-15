@@ -60,8 +60,8 @@ while true; do
 done
 
 cd ${input_folder}/${subj}/ses-${session}/func
-if [ -f timings ]; then
-    rm -r timings
+if [ -d "./timings" ]; then
+    rm -r ./timings
 fi
 mkdir timings
 

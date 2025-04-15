@@ -104,7 +104,7 @@ task() {
     echo "Moving previous outputs for subject"
     time=`date +"%H"`.`date +%M`
     old_results_path=${1}.$session_prefix.results
-    if [ -f "${output_folder}/$old_results_path" ]; then
+    if [ -d "${output_folder}/$old_results_path" ]; then
         if [ -f proc.${1} ]; then
             mv ${output_folder}/proc.${1} ${output_folder}/${old_results_path}
         fi
@@ -126,7 +126,7 @@ task() {
 
     if [ $compute_sswarper = true ]; then
     echo "Running SSWarper on ${1}"
-    @SSwarper -input ${input_folder}/${1}/$session_prefix/anat/${1}_${session_prefix}_T1w.nii.gz \
+    @SSwarper -input ${input_folder}/${1}/${session_prefix}/anat/${1}_${session_prefix}_T1w.nii.gz \
             -base MNI152_2009_template_SSW.nii.gz \
             -subid ${1} -odir ${input_folder}/${1}/$session_prefix/anat_warped \
             -giant_move \
@@ -138,17 +138,17 @@ task() {
     afni_proc.py \
         -subj_id ${1} \
         -dsets_me_run \
-            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-1_echo-1_bold.nii.gz \
-            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-1_echo-2_bold.nii.gz \
-            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-1_echo-3_bold.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-1_echo-1_bold.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-1_echo-2_bold.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-1_echo-3_bold.nii.gz \
         -echo_times 13.6 25.96 38.3 \
         -dsets_me_run \
-            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-2_echo-1_bold.nii.gz \
-            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-2_echo-2_bold.nii.gz \
-            ${input_folder}/${1}/$session_prefix/func/${1}_$session_prefix_task-war_run-2_echo-3_bold.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-2_echo-1_bold.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-2_echo-2_bold.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-2_echo-3_bold.nii.gz \
         -echo_times 13.6 25.96 38.3 \
         -copy_anat \
-            ${input_folder}/${1}/$session_prefix/anat/${1}_$session_prefix_T1w.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/anat/${1}_${session_prefix}_T1w.nii.gz \
         -blocks \
             tshift align tlrc volreg mask blur scale combine regress \
         -mask_epi_anat yes \
@@ -169,14 +169,14 @@ task() {
         -tlrc_base MNI152_2009_template.nii.gz \
         -tlrc_NL_warp \
         -tlrc_NL_warped_dsets \
-            ${input_folder}/${1}/$session_prefix/anat_warped/anatQQ.${1}.nii \
-            ${input_folder}/${1}/$session_prefix/anat_warped/anatQQ.${1}.aff12.1D \
-            ${input_folder}/${1}/$session_prefix/anat_warped/anatQQ.${1}_WARP.nii \
+            ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.nii \
+            ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.aff12.1D \
+            ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}_WARP.nii \
         -regress_stim_times       \
-            ${input_folder}/${1}/$session_prefix/func/timings/negative_block.1D \
-            ${input_folder}/${1}/$session_prefix/func/timings/positive_block.1D \
-            ${input_folder}/${1}/$session_prefix/func/timings/neutral_block.1D \
-            ${input_folder}/${1}/$session_prefix/func/timings/rest.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/negative_block.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/positive_block.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/neutral_block.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/rest.1D \
         -regress_stim_labels      neg_blck pos_blck neut_blck rest   \
         -regress_basis            'BLOCK(22,1)' \
         -regress_opts_3dD \
@@ -202,7 +202,7 @@ task() {
         #TODO: Multiply GM with the activity, and run clustsim on the result (Maybe post-script?)                                               
     echo "Done running afni_proc.py for subject ${1}"
     echo "Moving results to sub-folder by session"
-    mv ${1}.results ${output_folder}/${1}.$session_prefix.results
+    mv ${1}.results ${output_folder}/${1}.${session_prefix}.results
     echo "Done"
 }
 
