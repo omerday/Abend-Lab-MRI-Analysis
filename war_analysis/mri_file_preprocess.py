@@ -2,7 +2,7 @@ import os
 import argparse
 import subprocess
 from collections import defaultdict
-import pandas
+import pandas as pd
 
 DCM_CONVERTER_PATH = "dcm2niix"
 
@@ -25,14 +25,14 @@ def get_suffix(file_name: str) -> str:
     for suffix in SUFFIXES:
         if file_name.endswith(suffix):
             return suffix[1:]
-    print("Couldn't recognize file structure. Quitting.")
+    print(f"In get_suffix({file_name}). Couldn't recognize file structure. Quitting.")
     quit()
 
 def get_echo(file_name: str) -> str:
     for echo in ECHOES.keys():
         if echo in file_name:
             return ECHOES[echo]
-    print("Couldn't recognize file echo. Quitting.")
+    print(f"In get_echo({file_name}). Couldn't recognize file echo. Quitting.")
     quit()
 
 parser = argparse.ArgumentParser()
@@ -183,54 +183,19 @@ for war_run in range(1, 3):
 
 # Prepare log files
 print("Preparing log files")
-for file in os.listdir():
-    if file.startswith("WAR_LogFile"):
-        print(f"Handling file {file}")
-        suffix = get_suffix(file)
-        echo = get_echo(file)
-        new_name = f"{subject}_{session}_task-rest_{echo}_bold.{suffix}"
-        print(f"Renaming file to {new_name}")
-        os.rename(f"{func_path}/{file}", f"{func_path}/{new_name}")
-else:
-    print("No RS files to process. Moving on.")
-
-# Handle WAR Files
-# MAKE SURE FOLDER IS IN FORMAT WARX AND NOT WAR_X
-for war_run in range(1, 3):
-    malformatted_war_folder = f"./WAR {war_run}"
-    war_folder = f"./WAR{war_run}"
-    if os.path.exists(malformatted_war_folder):
-        os.rename(malformatted_war_folder, war_folder)
-    if os.path.exists(war_folder):
-        print(f"Starting conversion of WAR {war_run} scans")
-        func_path = f"./{session}/func"
-        current_files_in_path = []
-        if not os.path.exists(func_path):
-            os.mkdir(func_path)
+for current_file in os.listdir():
+    if current_file.startswith("WAR_LogFile"):
+        print(f"Handling file {current_file}")
+        if "Run_1" in current_file:
+            run_number = 1
         else:
-            # The folder might contain files from RS processing.
-            current_files_in_path = os.listdir(func_path)
-        print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -p y -z y -o {func_path} {war_folder}', shell=True))
-        for file in os.listdir(func_path):
-            if file not in current_files_in_path:
-                print(f"Handling file {file}")
-                suffix = get_suffix(file)
-                echo = get_echo(file)
-                new_name = f"{subject}_{session}_task-war_run-{war_run}_{echo}_bold.{suffix}"
-                print(f"Renaming file to {new_name}")
-                os.rename(f"{func_path}/{file}", f"{func_path}/{new_name}")
-    else:
-        print("No WAR 1 files to process. Moving on.")
-
-# Prepare log files
-print("Preparing log files")
-for file in os.listdir():
-    if file.startswith("WAR_LogFile"):
-        print(f"Handling file {file}")
-        run = 1 if 'Run_1' in file else 2
-        df = pandas.read_csv(file)
+            run_number = 2
+        print(f"run_number: {run_number}")
+        df = pd.read_csv(current_file)
+        print("Successfully read df.")
+        print(df)
         df.drop("Unnamed: 0", axis=1, inplace=True)
         df = df.round({"Time": 2, "Duration": 2})
-        new_file_name = f"{subject}_{session}_task-war_run-{run}_events.tsv"
+        new_file_name = f"{subject}_{session}_task-war_run-{run_number}_events.tsv"
         df.to_csv(f"./{session}/func/{new_file_name}", sep="\t", index=False)
         print(f"Created file {new_file_name}")
