@@ -16,12 +16,22 @@ BVAL_SUFFIX = ".bval"
 BVEC_SUFFIX = ".bvec"
 
 SUFFIXES = [".nii.gz", ".json", ".bval", ".bvec"]
+ECHOES = {"_e1": "echo-1",
+          "_e2": "echo-2",
+          "_e3": "echo-3"}
 
-def choose_suffix(file_name: str) -> str:
+def get_suffix(file_name: str) -> str:
     for suffix in SUFFIXES:
         if file_name.endswith(suffix):
             return suffix[1:]
     print("Couldn't recognize file structure. Quitting.")
+    quit()
+
+def get_echo(file_name: str) -> str:
+    for echo in ECHOES.keys():
+        if echo in file_name:
+            return ECHOES[echo]
+    print("Couldn't recognize file echo. Quitting.")
     quit()
 
 parser = argparse.ArgumentParser()
@@ -71,7 +81,7 @@ if os.path.exists("./FIELDMAP"):
     print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -m y -p y -z y -o {fmap_path} ./FIELDMAP', shell=True))
     for file in os.listdir(fmap_path):
         print(f"Handling file {file}")
-        suffix = choose_suffix(file)
+        suffix = get_suffix(file)
         new_name = f"{subject}_{session}_run-{1 if '_PA' in file else 2}"
         if "_ph." in file:
             new_name += "_phasediff"
@@ -92,7 +102,7 @@ if os.path.exists("./T1"):
     print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -p y -z y -o {t1_path} ./T1', shell=True))
     for file in os.listdir(t1_path):
         print(f"Handling file {file}")
-        suffix = choose_suffix(file)
+        suffix = get_suffix(file)
         new_name = f"{subject}_{session}_T1w.{suffix}"
         print(f"Renaming file to {new_name}")
         os.rename(f"{t1_path}/{file}", f"{t1_path}/{new_name}")
@@ -112,15 +122,60 @@ if os.path.exists("./DTI"):
     for file in os.listdir(dwi_path):
         suffix_numbers[file.split(".")[0].split("_")[-1]] += 1
     for file in os.listdir(dwi_path):
-        suffix = choose_suffix(file)
+        suffix = get_suffix(file)
         old_name = file.split(".")[0]
         if suffix_numbers[old_name.split("_")[-1]] == 4:
             print(f"handling file {file}")
-            new_name = f"{subject}_{session}_dwi_{'pa' if '_PA_' in old_name else 'ap'}"
-            print(f"renaming file to {new_name}.{suffix}")
-            os.rename(f"{dwi_path}/{file}", f"{dwi_path}/{new_name}.{suffix}")
+            new_name = f"{subject}_{session}_dwi_{'pa' if '_PA_' in old_name else 'ap'}.{suffix}"
+            print(f"renaming file to {new_name}")
+            os.rename(f"{dwi_path}/{file}", f"{dwi_path}/{new_name}")
         else:
             print(f"file {file} doesn't have 4 of the same enumaration ({old_name.split('_')[-1]}). Deleting.")
             os.remove(f"{dwi_path}/{file}")
 else:
     print("No DTI files to process. Moving on.")
+
+# Handle RS-MRI files
+if os.path.exists("./REST"):
+    print("Starting conversion of RS scans")
+    func_path = f"./{session}/func"
+    if not os.path.exists(func_path):
+        os.mkdir(func_path)
+    print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -p y -z y -o {func_path} ./REST', shell=True))
+    for file in os.listdir(func_path):
+        print(f"Handling file {file}")
+        suffix = get_suffix(file)
+        echo = get_echo(file)
+        new_name = f"{subject}_{session}_task-rest_{echo}_bold.{suffix}"
+        print(f"Renaming file to {new_name}")
+        os.rename(f"{func_path}/{file}", f"{func_path}/{new_name}")
+else:
+    print("No RS files to process. Moving on.")
+
+# Handle WAR Files
+# MAKE SURE FOLDER IS IN FORMAT WARX AND NOT WAR_X
+for war_run in range(1, 3):
+    malformatted_war_folder = f"./WAR {war_run}"
+    war_folder = f"./WAR{war_run}"
+    if os.path.exists(malformatted_war_folder):
+        os.rename(malformatted_war_folder, war_folder)
+    if os.path.exists(war_folder):
+        print(f"Starting conversion of WAR {war_run} scans")
+        func_path = f"./{session}/func"
+        current_files_in_path = []
+        if not os.path.exists(func_path):
+            os.mkdir(func_path)
+        else:
+            # The folder might contain files from RS processing.
+            current_files_in_path = os.listdir(func_path)
+        print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -p y -z y -o {func_path} {war_folder}', shell=True))
+        for file in os.listdir(func_path):
+            if file not in current_files_in_path:
+                print(f"Handling file {file}")
+                suffix = get_suffix(file)
+                echo = get_echo(file)
+                new_name = f"{subject}_{session}_task-war_run-{war_run}_{echo}_bold.{suffix}"
+                print(f"Renaming file to {new_name}")
+                os.rename(f"{func_path}/{file}", f"{func_path}/{new_name}")
+    else:
+        print("No WAR 1 files to process. Moving on.")
