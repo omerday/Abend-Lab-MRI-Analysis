@@ -1,6 +1,7 @@
 import os
 import argparse
 import subprocess
+from collections import defaultdict
 
 DCM_CONVERTER_PATH = "dcm2niix"
 
@@ -11,15 +12,17 @@ If necessary, change the DCM_CONVERTER path to match the installation path you n
 
 NIFTI_SUFFIX = ".nii.gz"
 JSON_SUFFIX = ".json"
+BVAL_SUFFIX = ".bval"
+BVEC_SUFFIX = ".bvec"
+
+SUFFIXES = [".nii.gz", ".json", ".bval", ".bvec"]
 
 def choose_suffix(file_name: str) -> str:
-    if file_name.endswith(NIFTI_SUFFIX):
-        return NIFTI_SUFFIX[1:]
-    elif file_name.endswith(JSON_SUFFIX):
-        return JSON_SUFFIX[1:]
-    else:
-        print("Couldn't recognize file structure. Quitting.")
-        quit()
+    for suffix in SUFFIXES:
+        if file_name.endswith(suffix):
+            return suffix[1:]
+    print("Couldn't recognize file structure. Quitting.")
+    quit()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("subject", help="Subject ID, in the format of sub-xx")
@@ -63,6 +66,8 @@ if os.path.exists("./FIELDMAP"):
     fmap_path = f"./{session}/fmap"
     if not os.path.exists(fmap_path):
         os.mkdir(fmap_path)
+    # NOTE - we're combining two magnitudes into 1. If we don't want to do so, we need to remove '-m y' from the command
+    # and catch this case in the naming as well (as magnitude2).
     print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -m y -p y -z y -o {fmap_path} ./FIELDMAP', shell=True))
     for file in os.listdir(fmap_path):
         print(f"Handling file {file}")
@@ -84,7 +89,7 @@ if os.path.exists("./T1"):
     t1_path = f"./{session}/anat"
     if not os.path.exists(t1_path):
         os.mkdir(t1_path)
-    print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -m y -p y -z y -o {t1_path} ./T1', shell=True))
+    print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -p y -z y -o {t1_path} ./T1', shell=True))
     for file in os.listdir(t1_path):
         print(f"Handling file {file}")
         suffix = choose_suffix(file)
@@ -97,5 +102,25 @@ else:
 #Handle DTI files
 if os.path.exists("./DTI"):
     print("Starting conversion of DTI scans")
+    dwi_path = f"./{session}/dwi"
+    if not os.path.exists(dwi_path):
+        os.mkdir(dwi_path)
+    print(subprocess.run(f'{DCM_CONVERTER_PATH} -f "%p_%s" -p y -z y -o {dwi_path} ./DTI', shell=True))
+    suffix_numbers = defaultdict(int)
+    # A DTI run should produce 4 files - nifti, json, bval and bvec.
+    # If one of those isn't present, we shouldn't proceed.
+    for file in os.listdir(dwi_path):
+        suffix_numbers[file.split(".")[0].split("_")[-1]] += 1
+    for file in os.listdir(dwi_path):
+        suffix = choose_suffix(file)
+        old_name = file.split(".")[0]
+        if suffix_numbers[old_name.split("_")[-1]] == 4:
+            print(f"handling file {file}")
+            new_name = f"{subject}_{session}_dwi_{'pa' if '_PA_' in old_name else 'ap'}"
+            print(f"renaming file to {new_name}.{suffix}")
+            os.rename(f"{dwi_path}/{file}", f"{dwi_path}/{new_name}.{suffix}")
+        else:
+            print(f"file {file} doesn't have 4 of the same enumaration ({old_name.split('_')[-1]}). Deleting.")
+            os.remove(f"{dwi_path}/{file}")
 else:
     print("No DTI files to process. Moving on.")
