@@ -190,10 +190,7 @@ for current_file in os.listdir():
             run_number = 1
         else:
             run_number = 2
-        print(f"run_number: {run_number}")
         df = pd.read_csv(current_file)
-        print("Successfully read df.")
-        print(df)
         df.drop("Unnamed: 0", axis=1, inplace=True)
         df = df.round({"Time": 2, "Duration": 2})
         new_file_name = f"{subject}_{session}_task-war_run-{run_number}_events.tsv"
