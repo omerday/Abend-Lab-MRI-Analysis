@@ -120,7 +120,7 @@ task() {
     fi
 
     echo "Preparing timing files for subject ${1}"
-    bash convert_event_onset_files.sh -s ${session} --subject ${1} --input ${input_folder}
+    bash ./fMRIScripts/war_analysis/convert_event_onset_files.sh -s ${session} --subject ${1} --input ${input_folder}
 
     if [ $compute_sswarper = true ]; then
     echo "Running SSWarper on ${1}"
