@@ -220,12 +220,13 @@ task() {
 }
 
 if [ $num_procs -eq 1 ]; then
-    for subj in $subject_ids; do
+    for subj in ${subject_ids[@]}; do
         task "$subj" > logs/${subj}.txt
     done
 else
-    for subj in $subject_ids; do
-        while [ $num_jobs -ge $num_procs ]; do
+    for subj in ${subject_ids[@]}; do
+        while [ $num_jobs -ge $num_procs ]
+        do
             wait -n
         done
         num_jobs=$num_jobs+1
