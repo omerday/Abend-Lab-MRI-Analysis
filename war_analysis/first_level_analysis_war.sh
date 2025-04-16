@@ -30,7 +30,7 @@ subject_ids=()
 
 #Indicate the session that needs to be analysed
 session=1
-session_prefix=""
+session_prefix="ses-1"
 num_procs=1
 compute_sswarper=false
 num_jobs=0
