@@ -9,7 +9,7 @@ OPTIND=1
 
 # Define the short and long options
 short_options="hs:wn:i:o:"
-long_options="help,session:,warper,num_proc:,subjects:,input:,output:"
+long_options="help,session:,warper,num_proc:,subjects:,input:,output:,conv:"
 # Parse the options using getopt
 parsed=$(getopt -o "$short_options" -l "$long_options" -- "$@")
 
@@ -24,6 +24,7 @@ eval set -- "$parsed"
 
 input_folder=""
 output_folder=""
+events_conversion_script_path="./fMRIScripts/war_analysis/convert_event_onset_files_war.sh"
 
 subject_ids=()
 
@@ -38,7 +39,7 @@ num_jobs=0
 while true; do
   case ${1} in
     -h|--help)
-      echo "Usage: $0 [-i input_folder] [-o output_folder] [-s session] [-w] [-n <nprocs>] --subjects <sub1,sub2,...> sub-??*"
+      echo "Usage: $0 [-i input_folder] [-o output_folder] [-s session] [-w] [-n <nprocs>] [--conv event_onset_conversion_script_path] --subjects <sub1,sub2,...> sub-??*"
       echo
       echo "Options:"
       echo "  -h, --help      Show this help message and exit."
@@ -47,6 +48,7 @@ while true; do
       echo "  -s, --session   Specify the session number."
       echo "  -w, --warper    Use SSWarper."
       echo "  -n, --num_proc  Specify the number of processors to use."
+      echo "  --conv          Specify path for the events_onset conversion script"
       echo "  --subjects       Specify a comma-separated list of subject IDs."
       echo
       echo "Example:"
@@ -82,6 +84,11 @@ while true; do
         echo "++Output folder: ${output_folder}"
         shift 2
         ;;
+    --conv)
+        events_conversion_script_path=$2
+        echo "++Onset conversion script path: ${events_conversion_script_path}"
+        shift 2
+        ;;
     --)
       shift
       break
@@ -98,6 +105,10 @@ if [ ${#subject_ids[@]} -eq 0 ]; then
     exit 1
 fi
 
+if [ ! -d logs ]; then
+    mkdir logs
+fi
+
 task() {
     echo "Started running for ${subj} with PID $PID"
 
@@ -111,18 +122,20 @@ task() {
         if [ -f "${output_folder}/output.proc.${1}" ]; then
             mv ${output_folder}/output.proc.${1} ${output_folder}/${old_results_path}
         fi
+        if [ ! -d ${output_folder}/old_results ]; then
+            mkdir ${output_folder}/old_results
+        fi
         mv ${output_folder}/${old_results_path} ${output_folder}/old_results/${old_results_path}.old.${time}
-    else
-        if [ -f proc.${1} ]; then
-            rm proc.${1}
-        fi
-        if [ -f output.proc.${1} ]; then
-            rm output.proc.${1}
-        fi
+    fi
+    if [ -f proc.${1} ]; then
+        rm proc.${1}
+    fi
+    if [ -f output.proc.${1} ]; then
+        rm output.proc.${1}
     fi
 
     echo "Preparing timing files for subject ${1}"
-    bash ./fMRIScripts/war_analysis/convert_event_onset_files_war.sh -s ${session} --subject ${1} --input ${input_folder}
+    bash ${events_conversion_script_path} -s ${session} --subject ${1} --input ${input_folder}
 
     if [ $compute_sswarper = true ]; then
     echo "Running SSWarper on ${1}"
@@ -208,7 +221,7 @@ task() {
 
 if [ $num_procs -eq 1 ]; then
     for subj in $subject_ids; do
-        task "$subj" > ${subj}.txt
+        task "$subj" > logs/${subj}.txt
     done
 else
     for subj in $subject_ids; do
@@ -216,7 +229,7 @@ else
             wait -n
         done
         num_jobs=$num_jobs+1
-        task "$subj" > ${subj}.txt && num_jobs=$num_jobs-1 &
+        task "$subj" > logs/${subj}.txt && num_jobs=$num_jobs-1 &
     done
 fi
 
