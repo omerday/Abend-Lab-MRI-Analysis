@@ -47,7 +47,7 @@ while true; do
       echo "  -o, --output    Specify the location of the output."
       echo "  -s, --session   Specify the session number."
       echo "  -w, --warper    Use SSWarper."
-      echo "  -n, --num_proc  Specify the number of processors to use."
+      echo "  -n, --num_procs  Specify the number of processors to use."
       echo "  --conv          Specify path for the events_onset conversion script"
       echo "  --subjects       Specify a comma-separated list of subject IDs."
       echo
@@ -65,8 +65,8 @@ while true; do
       compute_sswarper=true
       shift
       ;;
-    -n|--num_proc)
-        num_proc=$2
+    -n|--num_procs)
+        num_procs=$2
         shift 2
         ;;
     --subjects)
