@@ -154,7 +154,6 @@ task() {
             ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-1_echo-1_bold.nii.gz \
             ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-1_echo-2_bold.nii.gz \
             ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-1_echo-3_bold.nii.gz \
-        -echo_times 13.6 25.96 38.3 \
         -dsets_me_run \
             ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-2_echo-1_bold.nii.gz \
             ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-2_echo-2_bold.nii.gz \
@@ -163,9 +162,7 @@ task() {
         -copy_anat \
             ${input_folder}/${1}/${session_prefix}/anat/${1}_${session_prefix}_T1w.nii.gz \
         -blocks \
-            tshift align tlrc volreg mask blur scale combine regress \
-        -mask_epi_anat yes \
-        -mask_apply anat \
+            tshift align tlrc volreg mask combine blur scale regress \
         -tcat_remove_first_trs 5 \
         -html_review_style pythonic \
         -align_unifize_epi local \
@@ -176,9 +173,11 @@ task() {
         -volreg_align_to MIN_OUTLIER \
         -volreg_align_e2a \
         -volreg_tlrc_warp \
+        -volreg_compute_tsnr yes \
         -mask_epi_anat yes \
         -mask_segment_anat yes \
-        -volreg_compute_tsnr yes \
+        -combine_method OC \
+        -blur_size 4 \
         -tlrc_base MNI152_2009_template.nii.gz \
         -tlrc_NL_warp \
         -tlrc_NL_warped_dsets \
@@ -211,6 +210,7 @@ task() {
         -regress_est_blur_epits                                          \
         -regress_est_blur_errts                                          \
         -regress_run_clustsim     no                                     \
+        -radial_correlate_blocks tcat volreg regress \
         -execute           
         #TODO: Multiply GM with the activity, and run clustsim on the result (Maybe post-script?)                                               
     echo "Done running afni_proc.py for subject ${1}"
