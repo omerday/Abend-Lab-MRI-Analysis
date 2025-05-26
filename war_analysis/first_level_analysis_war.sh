@@ -52,7 +52,7 @@ while true; do
       echo "  --subjects       Specify a comma-separated list of subject IDs."
       echo
       echo "Example:"
-      echo "  $0 -s 2 --subjects sub-001,sub-003,sub-005 --output /path/to/output"
+      echo "  $0 -w -s 2 --subjects sub-01,sub-03,sub-05 --input /path/to/input --output /path/to/output"
       exit 1
       ;;
     -s|--session)
