@@ -93,7 +93,7 @@ for subject in ${subject_ids[@]}; do
     for session in ${sessions[@]}; do
         mask_epi_anat_files="${mask_epi_anat_files} ${input}/${subject}.${session}.results/mask_epi_anat.*+tlrc.HEAD"
         for stimulus in ${stimuli[@]}; do
-            data_table+="\n${subject}    ${session}  ${stimulus} ${input_folder}/${subject}.${session}.results/stats.${subj}+tlrc[${stimulus}-blck_GLT#0_Coef]"
+            data_table+="\n${subject}    ${session}  ${stimulus} ${input_folder}/${subject}.${session}.results/stats.${subject}+tlrc[${stimulus}-blck_GLT#0_Coef]"
         done
     done
 done
