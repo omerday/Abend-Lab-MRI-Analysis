@@ -139,7 +139,7 @@ task() {
 
     if [ $compute_sswarper = true ]; then
     echo "Running SSWarper on ${1}"
-    @SSwarper -input ${input_folder}/${1}/${session_prefix}/anat/${1}_${session_prefix}_T1w.nii.gz \
+    sswarper2 -input ${input_folder}/${1}/${session_prefix}/anat/${1}_${session_prefix}_T1w.nii.gz \
             -base MNI152_2009_template_SSW.nii.gz \
             -subid ${1} -odir ${input_folder}/${1}/$session_prefix/anat_warped \
             -giant_move \
