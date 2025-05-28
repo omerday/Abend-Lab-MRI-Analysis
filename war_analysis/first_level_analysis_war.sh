@@ -216,6 +216,27 @@ task() {
         -execute           
         #TODO: Multiply GM with the activity, and run clustsim on the result (Maybe post-script?)                                               
     echo "Done running afni_proc.py for subject ${1}"
+    echo "Exporting images using @chauffeur_afni"
+    stimuli=("neg","pos","neut")
+    for stim in ${stimuli[@]}; do
+        @chauffeur_afni                                             \
+            -ulay               ${1}.results/anat_final.*.HEAD      \
+            -ulay_range         0% 130%                             \
+            -olay               ${1}.results/stats.${1}+tlrc.HEAD   \
+            -box_focus_slices   AMASK_FOCUS_ULAY                    \
+            -func_range         3                                   \
+            -cbar               Reds_and_Blues_Inv                  \
+            -thr_olay_p2stat    0.05                                \
+            -thr_olay_pside     bisided                             \
+            -olay_alpha         Yes                                 \
+            -olay_boxed         Yes                                 \
+            -set_subbricks      -1 "${stim}_blck_GLT#0_Coef" "${stim}_blck_GLT#0_Tstat" \
+            -opacity            5                                   \
+            -prefix             ${1}.results/QC/${stim}             \
+            -set_xhairs         OFF                                 \
+            -montx 3 -monty 3                                       \
+            -label_mode 1 -label_size 4
+    done
     echo "Moving results to sub-folder by session"
     mv ${1}.results ${output_folder}/${1}.${session_prefix}.results
     echo "Done"

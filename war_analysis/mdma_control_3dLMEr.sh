@@ -109,14 +109,14 @@ data_table="subj group stimulus    InputFile"
 for subject in ${mdma_subject_ids[@]}; do
       mask_epi_anat_files="${mask_epi_anat_files} ${mdma_input_folder}/${subject}.ses-1.results/mask_epi_anat.*+tlrc.HEAD"
       for stimulus in ${stimuli[@]}; do
-          data_table+="\n${subject}    mdma  ${stimulus} ${mdma_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}-blck_GLT#0_Coef]"
+          data_table+="\n${subject}    mdma  ${stimulus} ${mdma_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck_GLT#0_Coef]"
       done
 done
 
 for subject in ${control_subject_ids[@]}; do
       mask_epi_anat_files="${mask_epi_anat_files} ${control_input_folder}/${subject}.ses-1.results/mask_epi_anat.*+tlrc.HEAD"
       for stimulus in ${stimuli[@]}; do
-          data_table+="\n${subject}    control  ${stimulus} ${control_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}-blck_GLT#0_Coef]"
+          data_table+="\n${subject}    control  ${stimulus} ${control_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck_GLT#0_Coef]"
       done
 done
 
