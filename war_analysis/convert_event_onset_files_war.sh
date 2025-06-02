@@ -3,8 +3,8 @@
 OPTIND=1
 
 # Define the short and long options
-short_options="hs:i:"
-long_options="help,session:,subject:,input:"
+short_options="hs:i:l:"
+long_options="help,session:,subject:,input:,lag:"
 # Parse the options using getopt
 parsed=$(getopt -o "$short_options" -l "$long_options" -- "$@")
 
@@ -17,6 +17,7 @@ fi
 # Set the positional parameters to the parsed options and arguments
 eval set -- "$parsed"
 
+lag=0
 input_folder=""
 session=1
 subj=""
@@ -44,6 +45,10 @@ while true; do
         input_folder=$2
         shift 2
         ;;
+    -l|--lag)
+        lag=$2
+        shift 2
+        ;;
     --subject)
         subj=$2
         shift 2
@@ -65,21 +70,21 @@ if [ -d "./timings" ]; then
 fi
 mkdir timings
 
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2==31 || $2==32 || $2==33 || $2==34) {print $1 - 10, $4, 1}}' > timings/negative_image_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="71" || $2=="72" || $2=="73" || $2=="74") {print $1 - 10, $4, 1}}' > timings/positive_image_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="51" || $2=="52" || $2=="53" || $2=="54") {print $1 - 10, $4, 1}}' > timings/neutral_image_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="31") {print $1 - 10, 22, 1}}' > timings/negative_block_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="71") {print $1 - 10, 22, 1}}' > timings/positive_block_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="51") {print $1 - 10, 22, 1}}' > timings/neutral_block_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="22" || $2=="24") {print $1 - 10, $4, 1}}' > timings/rest_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2==31 || $2==32 || $2==33 || $2==34) {print $1 - ${lag}, $4, 1}}' > timings/negative_image_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="71" || $2=="72" || $2=="73" || $2=="74") {print $1 - ${lag}, $4, 1}}' > timings/positive_image_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="51" || $2=="52" || $2=="53" || $2=="54") {print $1 - ${lag}, $4, 1}}' > timings/neutral_image_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="31") {print $1 - ${lag}, 22, 1}}' > timings/negative_block_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="71") {print $1 - ${lag}, 22, 1}}' > timings/positive_block_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="51") {print $1 - ${lag}, 22, 1}}' > timings/neutral_block_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="22" || $2=="24") {print $1 - ${lag}, $4, 1}}' > timings/rest_run1.txt
 
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="31" || $2=="32" || $2=="33" || $2=="34") {print $1 - 10, $4, 1}}' > timings/negative_image_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="71" || $2=="72" || $2=="73" || $2=="74") {print $1 - 10, $4, 1}}' > timings/positive_image_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="51" || $2=="52" || $2=="53" || $2=="54") {print $1 - 10, $4, 1}}' > timings/neutral_image_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="31") {print $1 - 10, 22, 1}}' > timings/negative_block_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="71") {print $1 - 10, 22, 1}}' > timings/positive_block_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="51") {print $1 - 10, 22, 1}}' > timings/neutral_block_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="22" || $2=="24") {print $1 - 10, $4, 1}}' > timings/rest_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="31" || $2=="32" || $2=="33" || $2=="34") {print $1 - ${lag}, $4, 1}}' > timings/negative_image_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="71" || $2=="72" || $2=="73" || $2=="74") {print $1 - ${lag}, $4, 1}}' > timings/positive_image_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="51" || $2=="52" || $2=="53" || $2=="54") {print $1 - ${lag}, $4, 1}}' > timings/neutral_image_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="31") {print $1 - ${lag}, 22, 1}}' > timings/negative_block_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="71") {print $1 - ${lag}, 22, 1}}' > timings/positive_block_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="51") {print $1 - ${lag}, 22, 1}}' > timings/neutral_block_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="22" || $2=="24") {print $1 - ${lag}, $4, 1}}' > timings/rest_run2.txt
 
 #Now convert to AFNI format
 cd timings

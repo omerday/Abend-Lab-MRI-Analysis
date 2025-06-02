@@ -8,8 +8,8 @@ echo ""
 OPTIND=1
 
 # Define the short and long options
-short_options="hs:wn:i:o:"
-long_options="help,session:,warper,num_proc:,subjects:,input:,output:,conv:"
+short_options="hs:wn:i:o:l:"
+long_options="help,session:,warper,num_proc:,subjects:,input:,output:,conv:,lag:"
 # Parse the options using getopt
 parsed=$(getopt -o "$short_options" -l "$long_options" -- "$@")
 
@@ -22,6 +22,7 @@ fi
 # Set the positional parameters to the parsed options and arguments
 eval set -- "$parsed"
 
+lag=0
 input_folder=""
 output_folder=""
 events_conversion_script_path="./fMRIScripts/war_analysis/convert_event_onset_files_war.sh"
@@ -34,6 +35,8 @@ session_prefix="ses-1"
 num_procs=1
 compute_sswarper=false
 num_jobs=0
+trs_removal=0
+tr_length=2
 
 # Loop through the options
 while true; do
@@ -48,6 +51,7 @@ while true; do
       echo "  -s, --session   Specify the session number."
       echo "  -w, --warper    Use SSWarper."
       echo "  -n, --num_procs  Specify the number of processors to use."
+      echo "  -l, --lag       Specify lag time in sec, to be reduced from the events timing."
       echo "  --conv          Specify path for the events_onset conversion script"
       echo "  --subjects       Specify a comma-separated list of subject IDs."
       echo
@@ -67,6 +71,10 @@ while true; do
       ;;
     -n|--num_procs)
         num_procs=$2
+        shift 2
+        ;;
+    -l|--lag)
+        lag=$2
         shift 2
         ;;
     --subjects)
@@ -109,6 +117,8 @@ if [ ! -d logs ]; then
     mkdir logs
 fi
 
+lag+=($trs_removal*$tr_length)
+
 task() {
     echo "Started running for ${subj} with PID $PID"
 
@@ -135,7 +145,7 @@ task() {
     fi
 
     echo "Preparing timing files for subject ${1}"
-    bash ${events_conversion_script_path} -s ${session} --subject ${1} --input ${input_folder}
+    bash ${events_conversion_script_path} -s ${session} --subject ${1} --input ${input_folder} --lag ${lag}
 
     if [ $compute_sswarper = true ]; then
     echo "Running SSWarper on ${1}"
