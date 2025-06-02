@@ -70,21 +70,21 @@ if [ -d "./timings" ]; then
 fi
 mkdir timings
 
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2==31 || $2==32 || $2==33 || $2==34) {print $1 - ${lag}, $4, 1}}' > timings/negative_image_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="71" || $2=="72" || $2=="73" || $2=="74") {print $1 - ${lag}, $4, 1}}' > timings/positive_image_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="51" || $2=="52" || $2=="53" || $2=="54") {print $1 - ${lag}, $4, 1}}' > timings/neutral_image_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="31") {print $1 - ${lag}, 22, 1}}' > timings/negative_block_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="71") {print $1 - ${lag}, 22, 1}}' > timings/positive_block_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="51") {print $1 - ${lag}, 22, 1}}' > timings/neutral_block_run1.txt
-cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="22" || $2=="24") {print $1 - ${lag}, $4, 1}}' > timings/rest_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2==31 || $2==32 || $2==33 || $2==34) {print $1 - $lag, $4, 1}}' > timings/negative_image_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="71" || $2=="72" || $2=="73" || $2=="74") {print $1 - $lag, $4, 1}}' > timings/positive_image_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="51" || $2=="52" || $2=="53" || $2=="54") {print $1 - $lag, $4, 1}}' > timings/neutral_image_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="31") {print $1 - $lag, 22, 1}}' > timings/negative_block_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="71") {print $1 - $lag, 22, 1}}' > timings/positive_block_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="51") {print $1 - $lag, 22, 1}}' > timings/neutral_block_run1.txt
+cat ${subj}_ses-${session}_task-war_run-1_events.tsv | awk '{if ($2=="22" || $2=="24") {print $1 - $lag, $4, 1}}' > timings/rest_run1.txt
 
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="31" || $2=="32" || $2=="33" || $2=="34") {print $1 - ${lag}, $4, 1}}' > timings/negative_image_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="71" || $2=="72" || $2=="73" || $2=="74") {print $1 - ${lag}, $4, 1}}' > timings/positive_image_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="51" || $2=="52" || $2=="53" || $2=="54") {print $1 - ${lag}, $4, 1}}' > timings/neutral_image_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="31") {print $1 - ${lag}, 22, 1}}' > timings/negative_block_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="71") {print $1 - ${lag}, 22, 1}}' > timings/positive_block_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="51") {print $1 - ${lag}, 22, 1}}' > timings/neutral_block_run2.txt
-cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="22" || $2=="24") {print $1 - ${lag}, $4, 1}}' > timings/rest_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="31" || $2=="32" || $2=="33" || $2=="34") {print $1 - $lag, $4, 1}}' > timings/negative_image_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="71" || $2=="72" || $2=="73" || $2=="74") {print $1 - $lag, $4, 1}}' > timings/positive_image_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="51" || $2=="52" || $2=="53" || $2=="54") {print $1 - $lag, $4, 1}}' > timings/neutral_image_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="31") {print $1 - $lag, 22, 1}}' > timings/negative_block_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="71") {print $1 - $lag, 22, 1}}' > timings/positive_block_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="51") {print $1 - $lag, 22, 1}}' > timings/neutral_block_run2.txt
+cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk '{if ($2=="22" || $2=="24") {print $1 - $lag, $4, 1}}' > timings/rest_run2.txt
 
 #Now convert to AFNI format
 cd timings
