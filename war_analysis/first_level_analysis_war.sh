@@ -170,12 +170,11 @@ task() {
             ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-2_echo-3_bold.nii.gz \
         -echo_times 13.6 25.96 38.3 \
         -copy_anat \
-            ${input_folder}/${1}/${session_prefix}/anat_warped/anatSS_${1}.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/anat_warped/anatSS.${1}.nii \
         -anat_has_skull no \
-        -anat_follower anat_w_skull ${input_folder}/${1}/${session_prefix}/anat_warped/anatU_${1}.nii.gz \
+        -anat_follower anat_w_skull anat ${input_folder}/${1}/${session_prefix}/anat_warped/anatU.${1}.nii \
         -blocks \
             tshift align tlrc volreg mask combine blur scale regress \
-        -tcat_remove_first_trs 5 \
         -html_review_style pythonic \
         -align_unifize_epi local \
         -align_opts_aea \
