@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Starting group analysis script for MDMA patients before and after the treatment."
+echo "Starting group analysis script for MDMA patients against control group."
 echo "Please note, this script should only be run with bash"
 echo "====================================================="
 echo ""
