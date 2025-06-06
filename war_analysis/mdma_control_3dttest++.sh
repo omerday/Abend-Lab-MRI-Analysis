@@ -132,6 +132,5 @@ for stimulus in ${stimuli[@]}; do
         -setA MDMA ${mdma_dsets} \
         -setB Control ${control_dsets} \
         -mask group_mask_olap.7+tlrc \
-        -frac 0.7
 
 done
