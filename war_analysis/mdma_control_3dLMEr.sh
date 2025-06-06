@@ -31,7 +31,7 @@ mdma_input_folder=""
 mdma_subject_ids=()
 control_input_folder=""
 control_subject_ids=()
-stimuli=("neg", "pos", "neut")
+stimuli=("neg" "pos" "neut")
 mask_epi_anat_files=""
 
 # Loop through the options
@@ -104,35 +104,41 @@ if [ ! -d logs ]; then
     mkdir logs
 fi
 
-data_table="subj group stimulus    InputFile"
+data_table="Subj group stimulus InputFile"$'\n'
 
 for subject in ${mdma_subject_ids[@]}; do
       mask_epi_anat_files="${mask_epi_anat_files} ${mdma_input_folder}/${subject}.ses-1.results/mask_epi_anat.*+tlrc.HEAD"
       for stimulus in ${stimuli[@]}; do
-          data_table+="\n${subject}    mdma  ${stimulus} ${mdma_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck_GLT#0_Coef]"
+          data_table+="${subject}    mdma  ${stimulus} ${mdma_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck#0_Coef]"$'\n'
       done
 done
 
 for subject in ${control_subject_ids[@]}; do
       mask_epi_anat_files="${mask_epi_anat_files} ${control_input_folder}/${subject}.ses-1.results/mask_epi_anat.*+tlrc.HEAD"
       for stimulus in ${stimuli[@]}; do
-          data_table+="\n${subject}    control  ${stimulus} ${control_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck_GLT#0_Coef]"
+          data_table+="${subject}    control  ${stimulus} ${control_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck#0_Coef]"$'\n'
       done
 done
 
-if [ -f "group_mask_olap.7.tlrc" ]; then
-    rm group_mask_olap.7.tlrc
+if [ -f "group_mask_olap.7+tlrc.HEAD" ]; then
+    rm group_mask_olap.7+tlrc.HEAD
 fi
+
+if [ -f "group_mask_olap.7+tlrc.BRIK.gz" ]; then
+    rm group_mask_olap.7+tlrc.BRIK.gz
+fi
+
+echo $data_table
 
 3dmask_tool -input ${mask_epi_anat_files} \
     -prefix group_mask_olap.7 \
     -frac 0.7
 
 3dLMEr -prefix LME_MDMA_Control \
-    -mask group_mask_olap.7.tlrc \
+    -mask group_mask_olap.7+tlrc \
     -bounds -2 2  \
     -SS_type 3 \
-    -model 'group*stimulus+(1|subj)+(1|subj:group)+(1|subj:stimulus)' \
+    -model 'group*stimulus+(1|Subj)+(1|Subj:group)+(1|Subj:stimulus)' \
     -gltCode neg.mdma 'group : 1*mdma stimulus : 1*neg' \
     -gltCode pos.mdma 'group : 1*mdma stimulus : 1*pos' \
     -gltCode neut.mdma 'group : 1*mdma stimulus : 1*neut' \
