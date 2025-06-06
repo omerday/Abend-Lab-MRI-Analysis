@@ -133,4 +133,33 @@ for stimulus in ${stimuli[@]}; do
         -setB Control ${control_dsets} \
         -mask group_mask_olap.7+tlrc \
 
+    if [ ! -d chauffeur]; then
+        mkdir chauffeur
+    fi
+
+    overlays=("MDMA" "Control" "MDMA-Control")
+    for olay in ${overlays[@]}; do
+        @chauffeur_afni                                                         \
+            -ulay               MNI152_2009_template.nii.gz                     \
+            -ulay_range         0% 130%                                         \
+            -olay               ./3dttest_MDMA_Control_${stimulus}+tlrc.HEAD    \
+            -box_focus_slices   AMASK_FOCUS_ULAY                                \
+            -func_range         3                                               \
+            -cbar               Reds_and_Blues_Inv                              \
+            -thr_olay_p2stat    0.05                                            \
+            -thr_olay_pside     bisided                                         \
+            -olay_alpha         Yes                                             \
+            -olay_boxed         Yes                                             \
+            -set_subbricks      -1 "${olay}_Tstat" "${olay}_Tstat"              \
+            -opacity            5                                               \
+            -zerocolor          white                                           \
+            -prefix             chauffeur/${stimulus}_${olay}                   \
+            -set_xhairs         OFF                                             \
+            -set_dicom_xyz      -10 0 0                                         \
+            -delta_slices       6 15 10                                         \
+            -label_color        black                                           \
+            -montx 3 -monty 3                                                   \
+            -label_mode 1 -label_size 4
+    done
+
 done
