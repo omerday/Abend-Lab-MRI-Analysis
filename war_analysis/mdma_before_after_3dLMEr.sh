@@ -30,7 +30,7 @@ eval set -- "$parsed"
 input_folder=""
 subject_ids=() # Initialize an empty array for subject IDs
 sessions=("ses-1", "ses-2")
-stimuli=("neg", "pos", "neut")
+stimuli=("neg" "pos" "neut")
 mask_epi_anat_files=""
 
 # Loop through the options
@@ -87,19 +87,23 @@ if [ ! -d logs ]; then
     mkdir logs
 fi
 
-data_table="subj session stimulus    InputFile"
+data_table="Subj session stimulus InputFile"$'\n'
 
 for subject in ${subject_ids[@]}; do
     for session in ${sessions[@]}; do
         mask_epi_anat_files="${mask_epi_anat_files} ${input}/${subject}.${session}.results/mask_epi_anat.*+tlrc.HEAD"
         for stimulus in ${stimuli[@]}; do
-            data_table+="\n${subject}    ${session}  ${stimulus} ${input_folder}/${subject}.${session}.results/stats.${subject}+tlrc[${stimulus}_blck_GLT#0_Coef]"
+            data_table+="${subject}    ${session}  ${stimulus} ${input_folder}/${subject}.${session}.results/stats.${subject}+tlrc[${stimulus}_blck_GLT#0_Coef]"$'\n'
         done
     done
 done
 
-if [ -f "group_mask_olap.7.tlrc" ]; then
-    rm group_mask_olap.7.tlrc
+if [ -f "group_mask_olap.7+tlrc.HEAD" ]; then
+    rm group_mask_olap.7+tlrc.HEAD
+fi
+
+if [ -f "group_mask_olap.7+tlrc.BRIK.gz" ]; then
+    rm group_mask_olap.7+tlrc.BRIK.gz
 fi
 
 3dmask_tool -input ${mask_epi_anat_files} \
@@ -107,10 +111,10 @@ fi
     -frac 0.7
 
 3dLMEr -prefix LME_MDMA_Within_Subject \
-    -mask group_mask_olap.7.tlrc \
+    -mask group_mask_olap.7+tlrc \
     -bounds -2 2  \
     -SS_type 3 \
-    -model 'session*stimulus+(1|subj)+(1|session:subj)+(1|stimulus:subj)' \
+    -model 'session*stimulus+(1|Subj)+(1|session:Subj)+(1|stimulus:Subj)' \
     -gltCode neg.cng    'session : 1*"ses-2" -1*"ses-1" stimulus : 1*neg' \
     -gltCode pos.cng    'session : 1*"ses-2" -1*"ses-1" stimulus : 1*pos' \
     -gltCode neut.cng    'session : 1*"ses-2" -1*"ses-1" stimulus : 1*neut' \
