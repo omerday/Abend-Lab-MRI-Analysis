@@ -109,11 +109,11 @@ for stimulus in ${stimuli[@]}; do
     control_dsets=""
     for subject in ${mdma_subject_ids[@]}; do
         mask_epi_anat_files="${mask_epi_anat_files} ${mdma_input_folder}/${subject}.ses-1.results/mask_epi_anat.*+tlrc.HEAD"
-        mdma_dsets="${mdma_dsets} ${mdma_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck#0_Coef]"
+        mdma_dsets="${mdma_dsets} ${subject} ${mdma_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck#0_Coef]"
     done
     for subject in ${control_subject_ids[@]}; do
         mask_epi_anat_files="${mask_epi_anat_files} ${control_input_folder}/${subject}.ses-1.results/mask_epi_anat.*+tlrc.HEAD"
-        control_dsets="${control_dsets} ${control_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck#0_Coef]"
+        control_dsets="${control_dsets} ${subject} ${control_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck#0_Coef]"
     done
 
     if [ -f "group_mask_olap.7+tlrc.HEAD" ]; then
