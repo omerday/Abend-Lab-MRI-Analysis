@@ -137,7 +137,7 @@ echo $data_table
 3dLMEr -prefix LME_MDMA_Control \
     -mask group_mask_olap.7+tlrc \
     -SS_type 3 \
-    -model 'group*stimulus + (1|Subj)' \
+    -model "group*stimulus+(1|Subj)" \
     -gltCode neg.mdma 'group : 1*mdma stimulus : 1*neg' \
     -gltCode pos.mdma 'group : 1*mdma stimulus : 1*pos' \
     -gltCode neut.mdma 'group : 1*mdma stimulus : 1*neut' \
