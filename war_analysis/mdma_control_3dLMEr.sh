@@ -166,8 +166,9 @@ if [ ! -d chauffeur_3dlmer]; then
         mkdir chauffeur_3dlmer
 fi
 
-chi_interactions=("group Chi-sq" "stimulus Chi-sq" "group:stimulus Chi-sq")
-for chi in ${chi_interactions[@]}; do
+chi_interactions=("group" "stimulus" "group:stimulus")
+for chi in "${chi_interactions[@]}"; do
+    echo $chi
     @chauffeur_afni                                                         \
         -ulay               MNI152_2009_template.nii.gz                     \
         -ulay_range         0% 130%                                         \
@@ -175,20 +176,21 @@ for chi in ${chi_interactions[@]}; do
         -box_focus_slices   AMASK_FOCUS_ULAY                                \
         -func_range         3                                               \
         -cbar               Reds_and_Blues_Inv                              \
-        -thr_olay_p2stat    0.05                                            \
+        -thr_olay_p2stat    0.1                                            \
         -thr_olay_pside     bisided                                         \
         -olay_alpha         Yes                                             \
         -olay_boxed         Yes                                             \
-        -set_subbricks      -1 "${chi}" "${chi}"                            \
+        -set_subbricks      -1 "$chi Chi-sq" "$chi Chi-sq"                            \
         -opacity            5                                               \
         -zerocolor          white                                           \
-        -prefix             chauffeur_3dlmer/${chi}                         \
+        -prefix             chauffeur_3dlmer/"$chi"                         \
         -set_xhairs         OFF                                             \
         -set_dicom_xyz      -10 0 0                                         \
         -delta_slices       6 15 10                                         \
         -label_color        black                                           \
         -montx 3 -monty 3                                                   \
-        -label_mode 1 -label_size 4
+        -label_mode 1 -label_size 4                                         \
+        -do_clean
 done
 
 stimuli=("neg" "neut" "pos")
@@ -200,7 +202,7 @@ for stimulus in ${stimuli[@]}; do
         -box_focus_slices   AMASK_FOCUS_ULAY                                \
         -func_range         3                                               \
         -cbar               Reds_and_Blues_Inv                              \
-        -thr_olay_p2stat    0.05                                            \
+        -thr_olay_p2stat    0.1                                            \
         -thr_olay_pside     bisided                                         \
         -olay_alpha         Yes                                             \
         -olay_boxed         Yes                                             \
@@ -213,5 +215,6 @@ for stimulus in ${stimuli[@]}; do
         -delta_slices       6 15 10                                         \
         -label_color        black                                           \
         -montx 3 -monty 3                                                   \
-        -label_mode 1 -label_size 4
+        -label_mode 1 -label_size 4                                         \
+        -do_clean
 done
