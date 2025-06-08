@@ -137,10 +137,10 @@ echo $data_table
 if [ -f "LME_MDMA_Control_log.txt" ]; then
     rm LME_MDMA_Control_log.txt
 fi
-if [ -f "LME_MDMA_Control+tlrc.BRIK.gz"]; then
+if [ -f "LME_MDMA_Control+tlrc.BRIK.gz" ]; then
     rm LME_MDMA_Control+tlrc.BRIK.gz
 fi
-if [ -f "LME_MDMA_Control+tlrc.HEAD"]; then
+if [ -f "LME_MDMA_Control+tlrc.HEAD" ]; then
     rm LME_MDMA_Control+tlrc.HEAD;
 fi
 
