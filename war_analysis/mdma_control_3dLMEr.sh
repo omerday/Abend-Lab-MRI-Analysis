@@ -151,3 +151,57 @@ echo $data_table
     -gltCode neg.neut.diff 'group : 1*mdma -1*control stimulus : 1*neg -1*neut' \
     -gltCode pos.neut.diff 'group : 1*mdma -1*control stimulus : 1*pos -1*neut' \
     -dataTable ${data_table}
+
+if [ ! -d chauffeur_3dlmer]; then
+        mkdir chauffeur_3dlmer
+fi
+
+chi_interactions=("group Chi-sq" "stimulus Chi-sq" "group:stimulus Chi-sq")
+for chi in ${chi_interactions[@]}; do
+    @chauffeur_afni                                                         \
+        -ulay               MNI152_2009_template.nii.gz                     \
+        -ulay_range         0% 130%                                         \
+        -olay               ./LME_MDMA_Control+tlrc.HEAD                    \
+        -box_focus_slices   AMASK_FOCUS_ULAY                                \
+        -func_range         3                                               \
+        -cbar               Reds_and_Blues_Inv                              \
+        -thr_olay_p2stat    0.05                                            \
+        -thr_olay_pside     bisided                                         \
+        -olay_alpha         Yes                                             \
+        -olay_boxed         Yes                                             \
+        -set_subbricks      -1 "${chi}" "${chi}"                            \
+        -opacity            5                                               \
+        -zerocolor          white                                           \
+        -prefix             chauffeur_3dlmer/${chi}                         \
+        -set_xhairs         OFF                                             \
+        -set_dicom_xyz      -10 0 0                                         \
+        -delta_slices       6 15 10                                         \
+        -label_color        black                                           \
+        -montx 3 -monty 3                                                   \
+        -label_mode 1 -label_size 4
+done
+
+stimuli=("neg" "neut" "pos")
+for stimulus in ${stimuli[@]}; do
+    @chauffeur_afni                                                         \
+        -ulay               MNI152_2009_template.nii.gz                     \
+        -ulay_range         0% 130%                                         \
+        -olay               ./LME_MDMA_Control+tlrc.HEAD                    \
+        -box_focus_slices   AMASK_FOCUS_ULAY                                \
+        -func_range         3                                               \
+        -cbar               Reds_and_Blues_Inv                              \
+        -thr_olay_p2stat    0.05                                            \
+        -thr_olay_pside     bisided                                         \
+        -olay_alpha         Yes                                             \
+        -olay_boxed         Yes                                             \
+        -set_subbricks      -1 "${stimulus}.mdma.ctrl.diff" "${stimulus}.mdma.ctrl.diff Z"                            \
+        -opacity            5                                               \
+        -zerocolor          white                                           \
+        -prefix             chauffeur_3dlmer/${stimulus}.mdma.ctrl.diff                        \
+        -set_xhairs         OFF                                             \
+        -set_dicom_xyz      -10 0 0                                         \
+        -delta_slices       6 15 10                                         \
+        -label_color        black                                           \
+        -montx 3 -monty 3                                                   \
+        -label_mode 1 -label_size 4
+done
