@@ -134,6 +134,16 @@ echo $data_table
     -prefix group_mask_olap.7 \
     -frac 0.7
 
+if [ -f "LME_MDMA_Control_log.txt" ]; then
+    rm LME_MDMA_Control_log.txt
+fi
+if [ -f "LME_MDMA_Control+tlrc.BRIK.gz"]; then
+    rm LME_MDMA_Control+tlrc.BRIK.gz
+fi
+if [ -f "LME_MDMA_Control+tlrc.HEAD"]; then
+    rm LME_MDMA_Control+tlrc.HEAD;
+fi
+
 3dLMEr -prefix LME_MDMA_Control \
     -mask group_mask_olap.7+tlrc \
     -SS_type 3 \
