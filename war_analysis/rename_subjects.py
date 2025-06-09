@@ -4,6 +4,7 @@ The script goes over the given subject ID, and changing the folders and file nam
 
 import os
 import argparse
+import shutil
 
 
 parser = argparse.ArgumentParser()
@@ -32,7 +33,11 @@ if subject not in os.listdir():
 old_id = subject.split('-')[-1]
 new_subject = "".join(["sub-", prefix, old_id])
 
-os.rename(subject, new_subject)
+try:
+    os.rename(subject, new_subject)
+except Exception as e:
+    print(f"Failed to rename folder {subject} to {new_subject}. Error: {e}")
+    
 sessions = [ses for ses in os.listdir(new_subject) if "ses-" in ses]
 folders = ['anat', 'func', 'fmap', 'dwi', 'anat_warped']
 
@@ -40,10 +45,14 @@ for session in sessions:
     print(f"Going over session {session}")
     for folder in folders:
         if folder in os.listdir(f"{new_subject}/{session}"):
-            if folder == 'anat_warped':
-                os.rmdir(f"{new_subject}/{session}/{folder}")
-                continue
             print(f"Going over folder {folder}")
+            if folder == 'anat_warped':
+                try:
+                    shutil.rmtree(f"{new_subject}/{session}/{folder}")
+                    print("File tree removed successfully")
+                    continue
+                except Exception as e:
+                    print(f"Couldn't remove folder with error: {e}")
             path = "".join([new_subject, '/', session, '/', folder])
             for file in os.listdir(path):
                 if subject in file:
