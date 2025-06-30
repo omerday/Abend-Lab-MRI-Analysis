@@ -19,6 +19,7 @@ eval set -- "$parsed"
 
 lag=0
 input_folder=""
+session=1
 runs=5
 subj=""
 
