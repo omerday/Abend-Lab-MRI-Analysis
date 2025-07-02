@@ -81,13 +81,13 @@ fi
 mkdir timings
 
 for i in $(seq 1 $runs); do
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="26") {print $1 - lag_val, $2, 1}}' > timings/low_temp_pain_run${run}.txt
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="46") {print $1 - lag_val, $2, 1}}' > timings/med_temp_pain_run${run}.txt
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="86") {print $1 - lag_val, $2, 1}}' > timings/high_temp_pain_run${run}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="26") {print $1 - lag_val, $2, 1}}' > timings/low_temp_pain_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="46") {print $1 - lag_val, $2, 1}}' > timings/med_temp_pain_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="86") {print $1 - lag_val, $2, 1}}' > timings/high_temp_pain_run${i}.txt
 
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="21") {print $1 - lag_val, $2, 1}}' > timings/green_square_onset_run${run}.txt
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="41") {print $1 - lag_val, $2, 1}}' > timings/yellow_square_onset_run${run}.txt
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="81") {print $1 - lag_val, $2, 1}}' > timings/red_square_onset_run${run}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="21") {print $1 - lag_val, $2, 1}}' > timings/green_square_onset_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="41") {print $1 - lag_val, $2, 1}}' > timings/yellow_square_onset_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="81") {print $1 - lag_val, $2, 1}}' > timings/red_square_onset_run${i}.txt
 done
 
 #Now convert to AFNI format
