@@ -8,8 +8,8 @@ echo ""
 OPTIND=1
 
 # Define the short and long options
-short_options="hs:wn:i:o:l:"
-long_options="help,session:,warper,num_proc:,subjects:,input:,output:,conv:,lag:"
+short_options="hs:r:wn:i:o:l:"
+long_options="help,session:,runs:,warper,num_proc:,subjects:,input:,output:,conv:,lag:"
 # Parse the options using getopt
 parsed=$(getopt -o "$short_options" -l "$long_options" -- "$@")
 
