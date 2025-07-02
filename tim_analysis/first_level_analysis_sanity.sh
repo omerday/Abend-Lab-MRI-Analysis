@@ -152,7 +152,7 @@ task() {
     fi
 
     echo "Preparing timing files for subject ${1}"
-    bash ${events_conversion_script_path} -s ${session} --subject ${1} --input ${input_folder} --lag ${lag}
+    bash ${events_conversion_script_path} -s ${session} -r ${runs} --subject ${1} --input ${input_folder} --lag ${lag}
 
     if [ $compute_sswarper = true ]; then
         echo "Running SSWarper on ${1}"
