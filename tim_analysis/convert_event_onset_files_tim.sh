@@ -3,8 +3,8 @@
 OPTIND=1
 
 # Define the short and long options
-short_options="hr:i:l:"
-long_options="help,runs:,subject:,input:,lag:"
+short_options="hs:r:i:l:"
+long_options="help,session:,runs:,subject:,input:,lag:"
 # Parse the options using getopt
 parsed=$(getopt -o "$short_options" -l "$long_options" -- "$@")
 
@@ -26,11 +26,12 @@ subj=""
 while true; do
   case ${1} in
     -h|--help)
-        echo "Usage: $0 [-h help] [-r runs] [-i input folder] [--subject subject ID]"
+        echo "Usage: $0 [-h help] [-r runs] [-s session] [-i input folder] [--subject subject ID]"
         echo
         echo "Options:"
         echo "  -h, --help      Show this help message and exit."
         echo "  -i, --input     Specify the location of the input."
+        echo "  -s, --session   Specify the session number."
         echo "  -r, --runs      Specify the amount of runs performed in the session."
         echo "  --subject       Specify a comma-separated list of subject IDs."
         echo
@@ -39,6 +40,10 @@ while true; do
         exit 1
         ;;
     -r|--runs)
+        runs=$2
+        shift 2
+        ;;
+    -s|--session)
         session=$2
         shift 2
         ;;
