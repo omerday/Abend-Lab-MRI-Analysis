@@ -264,3 +264,21 @@ task() {
     mv ${1}.results ${output_folder}/${1}.${session_prefix}.results
     echo "Done"
 }
+
+if [ $num_procs -eq 1 ]; then
+    for subj in ${subject_ids[@]}; do
+        task "$subj" > logs/${subj}.txt
+    done
+else
+    for subj in ${subject_ids[@]}; do
+        while [ $num_jobs -ge $num_procs ]
+        do
+            wait -n
+        done
+        num_jobs=$num_jobs+1
+        task "$subj" > logs/${subj}.txt && num_jobs=$num_jobs-1 &
+    done
+fi
+
+wait
+echo "All processes finished successfully!"
