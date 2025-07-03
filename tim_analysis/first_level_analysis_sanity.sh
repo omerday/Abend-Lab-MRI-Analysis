@@ -253,7 +253,7 @@ task() {
             -thr_olay_pside     bisided                             \
             -olay_alpha         Yes                                 \
             -olay_boxed         Yes                                 \
-            -set_subbricks      -1 "${stim}_GLT#0_Coef" "${stim}_GLT#0_Tstat" \
+            -set_subbricks      -1 "${stim}#0_Coef" "${stim}#0_Tstat" \
             -opacity            5                                   \
             -prefix             ${1}.results/QC/${stim}             \
             -set_xhairs         OFF                                 \
