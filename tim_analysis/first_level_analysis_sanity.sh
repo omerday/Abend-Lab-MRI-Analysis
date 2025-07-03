@@ -160,8 +160,9 @@ task() {
             -base MNI152_2009_template_SSW.nii.gz \
             -subid ${1} -odir ${input_folder}/${1}/$session_prefix/anat_warped \
             -giant_move \
-            -cost_nl_final lpa \
-            -minp 8
+            -cost_nl_final nmi \
+            -minp 8 \
+            -deoblique_refitly
     fi
 
     dsets=""
