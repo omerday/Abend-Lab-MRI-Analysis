@@ -226,7 +226,7 @@ task() {
         #TODO: Multiply GM with the activity, and run clustsim on the result (Maybe post-script?)                                               
     echo "Done running afni_proc.py for subject ${1}"
     echo "Exporting images using @chauffeur_afni"
-    stimuli=("neg","pos","neut")
+    stimuli=("neg" "pos" "neut")
     for stim in ${stimuli[@]}; do
         @chauffeur_afni                                             \
             -ulay               ${1}.results/anat_final.*.HEAD      \
