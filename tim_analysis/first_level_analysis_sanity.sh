@@ -167,9 +167,9 @@ task() {
     dsets=""
     for i in $(seq 1 $runs); do
         dsets+="-dsets_me_run \
-            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-${i}_echo-1_bold.nii.gz \
-            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-${i}_echo-2_bold.nii.gz \
-            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-war_run-${i}_echo-3_bold.nii.gz "
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-tim_run-${i}_echo-1_bold.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-tim_run-${i}_echo-2_bold.nii.gz \
+            ${input_folder}/${1}/${session_prefix}/func/${1}_${session_prefix}_task-tim_run-${i}_echo-3_bold.nii.gz "
     done
 
     echo "Running afni_proc.py for subject ${1}"
@@ -211,7 +211,7 @@ task() {
             ${input_folder}/${1}/${session_prefix}/func/timings/yellow_square_onset.1D \
             ${input_folder}/${1}/${session_prefix}/func/timings/red_square_onset.1D \
         -regress_stim_labels low_pain med_pain high_pain green_square yellow_square red_square \
-        -regress_basis 'BLOCK(3,1)' 'BLOCK(3,1)' 'BLOCK(3,1)' 'BLOCK(5,1)' 'BLOCK(5,1)' 'BLOCK(5,1)' \
+        -regress_basis 'BLOCK(3,1)' \
         -regress_opts_3dD \
         -jobs 8 \
         -gltsym 'SYM: high_pain -low_pain' \
