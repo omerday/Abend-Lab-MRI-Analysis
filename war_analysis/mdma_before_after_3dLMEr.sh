@@ -29,7 +29,7 @@ eval set -- "$parsed"
 
 input_folder=""
 subject_ids=() # Initialize an empty array for subject IDs
-sessions=("ses-1", "ses-2")
+sessions=("ses-1" "ses-2")
 stimuli=("neg" "pos" "neut")
 mask_epi_anat_files=""
 
@@ -87,17 +87,18 @@ if [ ! -d logs ]; then
     mkdir logs
 fi
 
-data_table="Subj session stimulus InputFile"$'\n'
+data_table="Subj    session stimulus    InputFile"$'\n'
 
 for subject in ${subject_ids[@]}; do
     for session in ${sessions[@]}; do
-        mask_epi_anat_files="${mask_epi_anat_files} ${input}/${subject}.${session}.results/mask_epi_anat.*+tlrc.HEAD"
+        mask_epi_anat_files="${mask_epi_anat_files} ${input_folder}/${subject}.${session}.results/mask_epi_anat.${subject}+tlrc.HEAD"
         for stimulus in ${stimuli[@]}; do
-            data_table+="${subject}    ${session}  ${stimulus} ${input_folder}/${subject}.${session}.results/stats.${subject}+tlrc[${stimulus}_blck_GLT#0_Coef]"$'\n'
+            data_table+="${subject}    ${session}  ${stimulus} ${input_folder}/${subject}.${session}.results/stats.${subject}+tlrc[${stimulus}_blck#0_Coef]"$'\n'
         done
     done
 done
 
+echo $data_table
 if [ -f "group_mask_olap.7+tlrc.HEAD" ]; then
     rm group_mask_olap.7+tlrc.HEAD
 fi
@@ -115,10 +116,10 @@ fi
     -bounds -2 2  \
     -SS_type 3 \
     -model 'session*stimulus+(1|Subj)+(1|session:Subj)+(1|stimulus:Subj)' \
-    -gltCode neg.cng    'session : 1*"ses-2" -1*"ses-1" stimulus : 1*neg' \
-    -gltCode pos.cng    'session : 1*"ses-2" -1*"ses-1" stimulus : 1*pos' \
-    -gltCode neut.cng    'session : 1*"ses-2" -1*"ses-1" stimulus : 1*neut' \
-    -gltCode neg.pos.diff 'session : 1*"ses-2" -1*"ses-1" stimulus : 1*neg -1*pos' \
-    -gltCode neg.neut.diff 'session : 1*"ses-2" -1*"ses-1" stimulus : 1*neg -1*neut' \
-    -gltCode pos.neut.diff 'session : 1*"ses-2" -1*"ses-1" stimulus : 1*pos -1*neut' \
+    -gltCode neg.cng    'session : 1*ses-2 -1*ses-1 stimulus : 1*neg' \
+    -gltCode pos.cng    'session : 1*ses-2 -1*ses-1 stimulus : 1*pos' \
+    -gltCode neut.cng    'session : 1*ses-2 -1*ses-1 stimulus : 1*neut' \
+    -gltCode neg.pos.diff 'session : 1*ses-2 -1*ses-1 stimulus : 1*neg -1*pos' \
+    -gltCode neg.neut.diff 'session : 1*ses-2 -1*ses-1 stimulus : 1*neg -1*neut' \
+    -gltCode pos.neut.diff 'session : 1*ses-2 -1*ses-1 stimulus : 1*pos -1*neut' \
     -dataTable ${data_table}
