@@ -9,7 +9,7 @@ OPTIND=1
 
 # Define the short and long options
 short_options="hs:wn:i:o:l:"
-long_options="help,session:,warper,num_proc:,subjects:,input:,output:,conv:,lag:"
+long_options="help,session:,warper,num_proc:,subjects:,input:,output:,conv:,lag:,lag_block_1:,lag_block_2:"
 # Parse the options using getopt
 parsed=$(getopt -o "$short_options" -l "$long_options" -- "$@")
 
@@ -26,6 +26,8 @@ lag=0
 input_folder=""
 output_folder=""
 events_conversion_script_path="./fMRIScripts/war_analysis/convert_event_onset_files_war.sh"
+lag_block_1=0
+lag_block_2=0
 
 subject_ids=()
 
@@ -42,7 +44,7 @@ tr_length=2
 while true; do
   case ${1} in
     -h|--help)
-      echo "Usage: $0 [-i input_folder] [-o output_folder] [-s session] [-w] [-n <nprocs>] [--conv event_onset_conversion_script_path] --subjects <sub1,sub2,...> sub-??*"
+      echo "Usage: $0 [-i input_folder] [-o output_folder] [-s session] [-w] [-n <nprocs>] [--lag <seconds>] [--conv event_onset_conversion_script_path] --subjects <sub1,sub2,...> sub-??*"
       echo
       echo "Options:"
       echo "  -h, --help      Show this help message and exit."
@@ -52,6 +54,8 @@ while true; do
       echo "  -w, --warper    Use SSWarper."
       echo "  -n, --num_procs  Specify the number of processors to use."
       echo "  -l, --lag       Specify lag time in sec, to be reduced from the events timing."
+      echo "  --lag_block_1   specify an amount of time to subtract from block 1 timing file. This will override -l."
+      echo "  --lag_block_2   specify an amount of time to subtract from block 2 timing file. This will override -l."
       echo "  --conv          Specify path for the events_onset conversion script"
       echo "  --subjects       Specify a comma-separated list of subject IDs."
       echo
@@ -75,6 +79,14 @@ while true; do
         ;;
     -l|--lag)
         lag=$2
+        shift 2
+        ;;
+    --lag_block_1)
+        lag_block_1=$2
+        shift 2
+        ;;
+    --lag_block_2)
+        lag_block_2=$2
         shift 2
         ;;
     --subjects)
@@ -117,7 +129,16 @@ if [ ! -d logs ]; then
     mkdir logs
 fi
 
-lag+=($trs_removal*$tr_length)
+if [ $lag_block_1 -eq 0]; then
+    lag_block_1=$lag
+fi
+
+if [ $lag_block_2 -eq 0]; then
+    lag_block_2=$lag
+fi
+
+lag_block_1+=($trs_removal*$tr_length)
+lag_block_2+=($trs_removal*$tr_length)
 
 task() {
     echo "Started running for ${subj} with PID $PID"
@@ -145,7 +166,7 @@ task() {
     fi
 
     echo "Preparing timing files for subject ${1}"
-    bash ${events_conversion_script_path} -s ${session} --subject ${1} --input ${input_folder} --lag ${lag}
+    bash ${events_conversion_script_path} -s ${session} --subject ${1} --input ${input_folder} --lag_block_1 ${lag_block_1} --lag_block_2 ${lag_block_2}
 
     if [ $compute_sswarper = true ]; then
     echo "Running SSWarper on ${1}"
