@@ -112,10 +112,8 @@ fi
     -frac 0.7
 
 3dLMEr -prefix LME_MDMA_Within_Subject \
-    -mask group_mask_olap.7+tlrc \
-    -bounds -2 2  \
     -SS_type 3 \
-    -model 'session*stimulus+(1|Subj)+(1|session:Subj)+(1|stimulus:Subj)' \
+    -model 'session*stimulus+(1|Subj)' \
     -gltCode neg.cng    'session : 1*ses-2 -1*ses-1 stimulus : 1*neg' \
     -gltCode pos.cng    'session : 1*ses-2 -1*ses-1 stimulus : 1*pos' \
     -gltCode neut.cng    'session : 1*ses-2 -1*ses-1 stimulus : 1*neut' \
