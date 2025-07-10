@@ -129,11 +129,11 @@ if [ ! -d logs ]; then
     mkdir logs
 fi
 
-if [ $lag_block_1 -eq 0]; then
+if [ ${lag_block_1} -eq 0 ]; then
     lag_block_1=$lag
 fi
 
-if [ $lag_block_2 -eq 0]; then
+if [ ${lag_block_2} -eq 0 ]; then
     lag_block_2=$lag
 fi
 
@@ -260,7 +260,7 @@ task() {
             -thr_olay_pside     bisided                             \
             -olay_alpha         Yes                                 \
             -olay_boxed         Yes                                 \
-            -set_subbricks      -1 "${stim}_blck_GLT#0_Coef" "${stim}_blck_GLT#0_Tstat" \
+            -set_subbricks      -1 "${stim}_blck#0_Coef" "${stim}_blck#0_Tstat" \
             -opacity            5                                   \
             -prefix             ${1}.results/QC/${stim}             \
             -set_xhairs         OFF                                 \

@@ -83,11 +83,11 @@ if [ -d "./timings" ]; then
 fi
 mkdir timings
 
-if [ $lag_block_1 -eq 0]; then
+if [ $lag_block_1 -eq 0 ]; then
     lag_block_1=$lag
 fi
 
-if [ $lag_block_2 -eq 0]; then
+if [ $lag_block_2 -eq 0 ]; then
     lag_block_2=$lag
 fi
 
