@@ -176,7 +176,7 @@ for chi in "${chi_interactions[@]}"; do
         -box_focus_slices   AMASK_FOCUS_ULAY                                \
         -func_range         3                                               \
         -cbar               Reds_and_Blues_Inv                              \
-        -thr_olay_p2stat    0.1                                            \
+        -thr_olay_p2stat    0.05                                            \
         -thr_olay_pside     bisided                                         \
         -olay_alpha         Yes                                             \
         -olay_boxed         Yes                                             \
@@ -202,7 +202,7 @@ for stimulus in ${stimuli[@]}; do
         -box_focus_slices   AMASK_FOCUS_ULAY                                \
         -func_range         3                                               \
         -cbar               Reds_and_Blues_Inv                              \
-        -thr_olay_p2stat    0.1                                            \
+        -thr_olay_p2stat    0.05                                            \
         -thr_olay_pside     bisided                                         \
         -olay_alpha         Yes                                             \
         -olay_boxed         Yes                                             \

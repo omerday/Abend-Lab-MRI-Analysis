@@ -109,9 +109,10 @@ fi
 
 3dmask_tool -input ${mask_epi_anat_files} \
     -prefix group_mask_olap.7 \
-    -frac 0.7
+    -frac 0.4
 
 3dLMEr -prefix LME_MDMA_Within_Subject \
+    -mask group_mask_olap.7+tlrc \
     -SS_type 3 \
     -model 'session*stimulus+(1|Subj)' \
     -gltCode neg.cng    'session : 1*ses-2 -1*ses-1 stimulus : 1*neg' \
@@ -121,3 +122,60 @@ fi
     -gltCode neg.neut.diff 'session : 1*ses-2 -1*ses-1 stimulus : 1*neg -1*neut' \
     -gltCode pos.neut.diff 'session : 1*ses-2 -1*ses-1 stimulus : 1*pos -1*neut' \
     -dataTable ${data_table}
+
+if [ ! -d chauffeur_3dlmer_within]; then
+        mkdir chauffeur_3dlmer_within
+fi
+
+chi_interactions=("session" "stimulus" "session:stimulus")
+for chi in "${chi_interactions[@]}"; do
+    echo $chi
+    @chauffeur_afni                                                         \
+        -ulay               MNI152_2009_template.nii.gz                     \
+        -ulay_range         0% 130%                                         \
+        -olay               ./LME_MDMA_Within_Subject+tlrc.HEAD                   \
+        -box_focus_slices   AMASK_FOCUS_ULAY                                \
+        -func_range         3                                               \
+        -cbar               Reds_and_Blues_Inv                              \
+        -thr_olay_p2stat    0.1                                            \
+        -thr_olay_pside     bisided                                         \
+        -olay_alpha         Yes                                             \
+        -olay_boxed         Yes                                             \
+        -set_subbricks      -1 "$chi Chi-sq" "$chi Chi-sq"                            \
+        -opacity            5                                               \
+        -zerocolor          white                                           \
+        -prefix             chauffeur_3dlmer_within/"$chi"                         \
+        -set_xhairs         OFF                                             \
+        -set_dicom_xyz      -10 0 0                                         \
+        -delta_slices       6 15 10                                         \
+        -label_color        black                                           \
+        -montx 3 -monty 3                                                   \
+        -label_mode 1 -label_size 4                                         \
+        -do_clean
+done
+
+stimuli=("neg" "neut" "pos")
+for stimulus in ${stimuli[@]}; do
+    @chauffeur_afni                                                         \
+        -ulay               MNI152_2009_template.nii.gz                     \
+        -ulay_range         0% 130%                                         \
+        -olay               ./LME_MDMA_Within_Subject+tlrc.HEAD                    \
+        -box_focus_slices   AMASK_FOCUS_ULAY                                \
+        -func_range         3                                               \
+        -cbar               Reds_and_Blues_Inv                              \
+        -thr_olay_p2stat    0.1                                            \
+        -thr_olay_pside     bisided                                         \
+        -olay_alpha         Yes                                             \
+        -olay_boxed         Yes                                             \
+        -set_subbricks      -1 "${stimulus}.cng" "${stimulus}.cng Z"                            \
+        -opacity            5                                               \
+        -zerocolor          white                                           \
+        -prefix             chauffeur_3dlmer_within/${stimulus}.cng                        \
+        -set_xhairs         OFF                                             \
+        -set_dicom_xyz      -10 0 0                                         \
+        -delta_slices       6 15 10                                         \
+        -label_color        black                                           \
+        -montx 3 -monty 3                                                   \
+        -label_mode 1 -label_size 4                                         \
+        -do_clean
+done
