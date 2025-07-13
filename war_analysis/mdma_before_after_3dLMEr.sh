@@ -99,20 +99,20 @@ for subject in ${subject_ids[@]}; do
 done
 
 echo $data_table
-if [ -f "group_mask_olap.7+tlrc.HEAD" ]; then
-    rm group_mask_olap.7+tlrc.HEAD
+if [ -f "group_mask_olap.4+tlrc.HEAD" ]; then
+    rm group_mask_olap.4+tlrc.HEAD
 fi
 
-if [ -f "group_mask_olap.7+tlrc.BRIK.gz" ]; then
-    rm group_mask_olap.7+tlrc.BRIK.gz
+if [ -f "group_mask_olap.4+tlrc.BRIK.gz" ]; then
+    rm group_mask_olap.4+tlrc.BRIK.gz
 fi
 
 3dmask_tool -input ${mask_epi_anat_files} \
-    -prefix group_mask_olap.7 \
+    -prefix group_mask_olap.4 \
     -frac 0.4
 
 3dLMEr -prefix LME_MDMA_Within_Subject \
-    -mask group_mask_olap.7+tlrc \
+    -mask group_mask_olap.4+tlrc \
     -SS_type 3 \
     -model 'session*stimulus+(1|Subj)' \
     -gltCode neg.cng    'session : 1*ses-2 -1*ses-1 stimulus : 1*neg' \
@@ -137,7 +137,7 @@ for chi in "${chi_interactions[@]}"; do
         -box_focus_slices   AMASK_FOCUS_ULAY                                \
         -func_range         3                                               \
         -cbar               Reds_and_Blues_Inv                              \
-        -thr_olay_p2stat    0.1                                            \
+        -thr_olay_p2stat    0.05                                            \
         -thr_olay_pside     bisided                                         \
         -olay_alpha         Yes                                             \
         -olay_boxed         Yes                                             \
@@ -148,7 +148,8 @@ for chi in "${chi_interactions[@]}"; do
         -set_xhairs         OFF                                             \
         -set_dicom_xyz      -10 0 0                                         \
         -delta_slices       6 15 10                                         \
-        -label_color        black                                           \
+        -label_color        black       \
+        -clusterize        "-NN 2 -clust_nvox 40"                                      \
         -montx 3 -monty 3                                                   \
         -label_mode 1 -label_size 4                                         \
         -do_clean
@@ -163,7 +164,7 @@ for stimulus in ${stimuli[@]}; do
         -box_focus_slices   AMASK_FOCUS_ULAY                                \
         -func_range         3                                               \
         -cbar               Reds_and_Blues_Inv                              \
-        -thr_olay_p2stat    0.1                                            \
+        -thr_olay_p2stat    0.05                                            \
         -thr_olay_pside     bisided                                         \
         -olay_alpha         Yes                                             \
         -olay_boxed         Yes                                             \
@@ -174,6 +175,7 @@ for stimulus in ${stimuli[@]}; do
         -set_xhairs         OFF                                             \
         -set_dicom_xyz      -10 0 0                                         \
         -delta_slices       6 15 10                                         \
+        -clusterize        "-NN 2 -clust_nvox 40"       \
         -label_color        black                                           \
         -montx 3 -monty 3                                                   \
         -label_mode 1 -label_size 4                                         \
