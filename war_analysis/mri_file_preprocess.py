@@ -84,6 +84,9 @@ if os.path.exists("./FIELDMAP"):
     for file in os.listdir(fmap_path):
         if file not in current_files_in_path:
             print(f"Handling file {file}")
+            if "fieldmap_" not in file:
+                print("File is not a fieldmap file! Skipping.")
+                continue
             suffix = get_suffix(file)
             new_name = f"{subject}_{session}_run-{1 if '_PA' in file else 2}"
             if "_ph." in file:
@@ -107,6 +110,9 @@ if os.path.exists("./T1"):
     for file in os.listdir(t1_path):
         if file not in current_files_in_path:
             print(f"Handling file {file}")
+            if "t1_mprage" not in file:
+                print("File is not a T1. Skipping.")
+                continue
             suffix = get_suffix(file)
             new_name = f"{subject}_{session}_T1w.{suffix}"
             print(f"Renaming file to {new_name}")
@@ -151,6 +157,9 @@ if os.path.exists("./DTI"):
             old_name = file.split(".")[0]
             if suffix_numbers[old_name.split("_")[-1]] == 4:
                 print(f"handling file {file}")
+                if "ep2d_diff" not in file:
+                    print("Not a DTI file. Skipping")
+                    continue
                 new_name = f"{subject}_{session}_dwi_{'pa' if '_PA_' in old_name else 'ap'}.{suffix}"
                 print(f"renaming file to {new_name}")
                 os.rename(f"{dwi_path}/{file}", f"{dwi_path}/{new_name}")
@@ -171,6 +180,9 @@ if os.path.exists("./REST"):
     for file in os.listdir(func_path):
         if file not in current_files_in_path:
             print(f"Handling file {file}")
+            if "CBU_REST" not in file:
+                print("Not an RS scan. Skipping")
+                continue
             suffix = get_suffix(file)
             echo = get_echo(file)
             new_name = f"{subject}_{session}_task-rest_{echo}_bold.{suffix}"
@@ -199,6 +211,9 @@ for war_run in range(1, 3):
         for file in os.listdir(func_path):
             if file not in current_files_in_path:
                 print(f"Handling file {file}")
+                if "CBU_WAR" not in file:
+                    print("Not a WAR file. Skipping")
+                    continue
                 suffix = get_suffix(file)
                 echo = get_echo(file)
                 new_name = f"{subject}_{session}_task-war_run-{war_run}_{echo}_bold.{suffix}"
