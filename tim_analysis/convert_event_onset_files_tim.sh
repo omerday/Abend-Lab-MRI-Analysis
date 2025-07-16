@@ -87,9 +87,11 @@ for i in $(seq 1 $runs); do
     cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="81") {print $1 - lag_val, $2, 1}}' > timings/red_square_onset_run${i}.txt
 
     # Amplitude events - square onset
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="21") {print $1 - lag_val"*2"}}' > timings/amp_square_onset.1D
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="41") {print $1 - lag_val"*6"}}' >> timings/amp_square_onset.1D
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="81") {print $1 - lag_val"*8"}}' >> timings/amp_square_onset.1D
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="21") {printf $1 - lag_val"*2 "}}' >> timings/amp_square_onset_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="41") {printf $1 - lag_val"*6 "}}' >> timings/amp_square_onset_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="81") {printf $1 - lag_val"*8 "}}' >> timings/amp_square_onset_run${i}.txt
+
+    echo `cat timings/amp_square_onset_run${i}.txt` >> timings/amp_square_onset.1D
 
     # Timed events - pre heat
     cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="25") {print $1 - lag_val, $2, 1}}' > timings/low_temp_pre_pain_run${i}.txt
@@ -97,9 +99,11 @@ for i in $(seq 1 $runs); do
     cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="85") {print $1 - lag_val, $2, 1}}' > timings/high_temp_pre_pain_run${i}.txt
 
     # Amplitude events - pre heat
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="25") {print $1 - lag_val"*2"}}' > timings/amp_pre_pain.1D
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="45") {print $1 - lag_val"*6"}}' >> timings/amp_pre_pain.1D
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="85") {print $1 - lag_val"*8"}}' >> timings/amp_pre_pain.1D
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="25") {printf $1 - lag_val"*2 "}}' >> timings/amp_pre_pain_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="45") {printf $1 - lag_val"*6 "}}' >> timings/amp_pre_pain_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="85") {printf $1 - lag_val"*8 "}}' >> timings/amp_pre_pain_run${i}.txt
+
+    echo `cat timings/amp_pre_pain_run${i}.txt` >> timings/amp_pre_pain.1D
 
     # Timed events - heat
     cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="26") {print $1 - lag_val, $2, 1}}' > timings/low_temp_pain_run${i}.txt
@@ -107,9 +111,12 @@ for i in $(seq 1 $runs); do
     cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="86") {print $1 - lag_val, $2, 1}}' > timings/high_temp_pain_run${i}.txt
 
     # Amplitude events - heat
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="26") {print $1 - lag_val"*2"}}' > timings/amp_pain.1D
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="46") {print $1 - lag_val"*6"}}' >> timings/amp_pain.1D
-    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="86") {print $1 - lag_val"*8"}}' >> timings/amp_pain.1D
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="26") {printf $1 - lag_val"*2 "}}' >> timings/amp_pain_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="46") {printf $1 - lag_val"*6 "}}' >> timings/amp_pain_run${i}.txt
+    cat ${subj}_ses-${session}_task-tim_run-${i}_events.tsv | awk -v lag_val="$lag" '{if ($3=="86") {printf $1 - lag_val"*8 "}}' >> timings/amp_pain_run${i}.txt
+
+    echo `cat timings/amp_pain_run${i}.txt` >> timings/amp_pain.1D
+
 done
 
 #Now convert to AFNI format
