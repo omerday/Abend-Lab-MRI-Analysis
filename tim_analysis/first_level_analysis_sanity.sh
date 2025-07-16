@@ -205,21 +205,21 @@ task() {
             ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.aff12.1D \
             ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}_WARP.nii \
         -regress_stim_times \
-            ${input_folder}/${1}/${session_prefix}/func/timings/low_temp_pain.1D \
-            ${input_folder}/${1}/${session_prefix}/func/timings/med_temp_pain.1D \
-            ${input_folder}/${1}/${session_prefix}/func/timings/high_temp_pain.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/low_temp_pre_pain.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/med_temp_pre_pain.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/high_temp_pre_pain.1D \
             ${input_folder}/${1}/${session_prefix}/func/timings/green_square_onset.1D \
             ${input_folder}/${1}/${session_prefix}/func/timings/yellow_square_onset.1D \
             ${input_folder}/${1}/${session_prefix}/func/timings/red_square_onset.1D \
-        -regress_stim_labels low_pain med_pain high_pain green_square yellow_square red_square \
+        -regress_stim_labels low_pre_pain med_pre_pain high_pre_pain green_square yellow_square red_square \
         -regress_basis 'BLOCK(3,1)' \
         -regress_opts_3dD \
         -jobs 8 \
-        -gltsym 'SYM: high_pain -low_pain' \
+        -gltsym 'SYM: high_pre_pain -low_pre_pain' \
         -glt_label 1 high-low-pain \
-        -gltsym 'SYM: high_pain -med_pain' \
+        -gltsym 'SYM: high_pre_pain -med_pre_pain' \
         -glt_label 2 high-med-pain \
-        -gltsym 'SYM: med_pain -low_pain' \
+        -gltsym 'SYM: med_pre_pain -low_pre_pain' \
         -glt_label 3 med-low-pain \
         -gltsym 'SYM: red_square -green_square' \
         -glt_label 4 red-green-square \
@@ -241,7 +241,7 @@ task() {
 
     echo "Done running afni_proc.py for subject ${1}"
     echo "Exporting images using @chauffeur_afni"
-    stimuli=("low_pain" "med_pain" "high_pain" "green_square" "yellow_square" "red_square")
+    stimuli=("low_pre_pain" "med_pre_pain" "high_pre_pain" "green_square" "yellow_square" "red_square")
     for stim in ${stimuli[@]}; do
         @chauffeur_afni                                             \
             -ulay               ${1}.results/anat_final.*.HEAD      \
@@ -255,6 +255,7 @@ task() {
             -olay_alpha         Yes                                 \
             -olay_boxed         Yes                                 \
             -set_subbricks      -1 "${stim}#0_Coef" "${stim}#0_Tstat" \
+            -clusterize        "-NN 2 -clust_nvox 40"               \
             -opacity            5                                   \
             -prefix             ${1}.results/QC/${stim}             \
             -set_xhairs         OFF                                 \
