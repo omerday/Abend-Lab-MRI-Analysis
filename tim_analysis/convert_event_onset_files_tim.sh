@@ -117,6 +117,8 @@ for i in $(seq 1 $runs); do
 
     echo `cat timings/amp_pain_run${i}.txt` >> timings/amp_pain.1D
 
+    cat scr_amplitude_run-${i}.txt | awk -v lag_val="$lag" '{print $2 - lag_val"*"$3}' > timings/scr_amp_run-${i}.txt
+    echo `cat timings/scr_amp_run-${i}.txt` >> scr_amp.1D
 done
 
 #Now convert to AFNI format
