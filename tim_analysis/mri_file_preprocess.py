@@ -4,6 +4,7 @@ import re
 import subprocess
 from collections import defaultdict
 import pandas as pd
+import era_to_timing
 
 DCM_CONVERTER_PATH = "dcm2niix"
 
@@ -37,9 +38,10 @@ def get_echo(file_name: str) -> str:
     quit()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("subject", help="Subject ID, in the format of sub-xx")
-parser.add_argument("--session", default=1, help="Session ID - 1 or 2", )
-parser.add_argument("--runs", default=5, help="Amount of TIM runs")
+parser.add_argument("subject", help="Subject ID, in the format of sub-xx.")
+parser.add_argument("--session", default=1, help="Session ID - 1 or 2.", )
+parser.add_argument("--runs", default=5, help="Amount of TIM runs.")
+parser.add_argument("--era", help="Path to Ledalab's ERA file.")
 args = parser.parse_args()
 
 subject = args.subject
@@ -61,6 +63,11 @@ else:
     except:
         print("Something went wrong parsing the session ID. Please enter a single digit.")
         quit()
+
+if not args.era:
+    era_path = None
+else:
+    era_path = args.era
 
 runs = 5
 try:
@@ -248,3 +255,7 @@ for current_file in os.listdir():
         new_file_name = f"{subject}_{session}_task-tim_run-{run_number}_events.tsv"
         df.to_csv(f"./{session}/func/{new_file_name}", sep="\t", index=False)
         print(f"Created file {new_file_name}")
+
+if era_path:
+    os.chdir("..")
+    era_to_timing.get_scr_timing_file(era_path, f"./{subject}/{session}/func", f"./{subject}/{session}/func", runs)
