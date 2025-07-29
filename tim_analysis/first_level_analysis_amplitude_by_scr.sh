@@ -151,6 +151,18 @@ task() {
         rm output.proc.${1}
     fi
 
+    echo "Cleaning up old data on Dropbox"
+    if [ -d ~/Dropbox/${1}.scr.old ]; then
+        rm -r ~/Dropbox/${1}.scr.old
+    fi
+
+    echo "Backing up previous results on Dropbox"
+    if [ -d ~/Dropbox/${1}.scr ]; then
+        mv ~/Dropbox/${1}.scr ~/Dropbox/${1}.scr.old
+    fi
+
+    mkdir ~/Dropbox/${1}.scr
+
     echo "Preparing timing files for subject ${1}"
     bash ${events_conversion_script_path} -s ${session} -r ${runs} --subject ${1} --input ${input_folder} --lag ${lag}
 
@@ -223,6 +235,9 @@ task() {
         -radial_correlate_blocks tcat volreg regress \
         -execute
 
+    echo "Backing up QC to Dropbox"
+    cp -R ${1}.QC_${1} ~/Dropbox/${1}.scr/QC
+
     echo "Done running afni_proc.py for subject ${1}"
     echo "Exporting images using @chauffeur_afni"
     regressors=("SCR#0" "SCR#1")
@@ -241,11 +256,15 @@ task() {
             -set_subbricks      -1 "${reg}_Coef" "${reg}_Tstat" \
             -clusterize        "-NN 2 -clust_nvox 40"               \
             -opacity            5                                   \
-            -prefix             ${1}.results/QC/${reg}          \
+            -prefix             ${1}.results/chauffeur/${reg}          \
             -set_xhairs         OFF                                 \
             -montx 3 -monty 3                                       \
             -label_mode 1 -label_size 4
     done
+
+    echo "Backing up chauffeur to Dropbox"
+    cp -R ${1}/chauffeur ~/Dropbox/${1}.scr/chauffeur
+
     echo "Moving results to sub-folder by session"
     mv ${1}.results ${output_folder}/${1}.${session_prefix}.results
     echo "Done"
