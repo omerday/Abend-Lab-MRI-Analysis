@@ -235,6 +235,7 @@ task() {
             -regress_est_blur_errts \
             -regress_run_clustsim no \
             -radial_correlate_blocks tcat volreg regress \
+            -remove_preproc_files \
             -execute
 
         echo "Done running afni_proc.py for subject ${1} and event ${event}"
