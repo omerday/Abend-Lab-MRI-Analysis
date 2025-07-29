@@ -151,6 +151,18 @@ task() {
         rm output.proc.${1}
     fi
 
+    echo "Cleaning up old data on Dropbox"
+    if [ -d ~/Dropbox/${1}.old ]; then
+        rm -r ~/Dropbox/${1}.old
+    fi
+
+    echo "Backing up previous results on Dropbox"
+    if [ -d ~/Dropbox/${1} ]; then
+        mv ~/Dropbox/${1} ~/Dropbox/${1}.old
+    fi
+
+    mkdir ~/Dropbox/${1}
+
     echo "Preparing timing files for subject ${1}"
     bash ${events_conversion_script_path} -s ${session} -r ${runs} --subject ${1} --input ${input_folder} --lag ${lag}
 
@@ -226,26 +238,45 @@ task() {
             -execute
 
         echo "Done running afni_proc.py for subject ${1} and event ${event}"
+
+        echo "Backing up QC to Dropbox"
+        mkdir ~/Dropbox/${1}/${event}
+        cp -R ${1}.results/QC_${1} ~/Dropbox/${1}/${event}/QC
+
+        echo "Moving proc files"
+        mv proc.${1} ${1}.results/proc.${1}
+        mv output.proc.${1} ${1}.results/output.proc.${1}
+
         echo "Exporting images using @chauffeur_afni"
-        @chauffeur_afni                                             \
-            -ulay               ${1}.results/anat_final.*.HEAD      \
-            -ulay_range         0% 130%                             \
-            -olay               ${1}.results/stats.${1}+tlrc.HEAD   \
-            -box_focus_slices   AMASK_FOCUS_ULAY                    \
-            -func_range         3                                   \
-            -cbar               Reds_and_Blues_Inv                  \
-            -thr_olay_p2stat    0.05                                \
-            -thr_olay_pside     bisided                             \
-            -olay_alpha         Yes                                 \
-            -olay_boxed         Yes                                 \
-            -set_subbricks      -1 "${event}#0_Coef" "${event}#0_Tstat" \
-            -clusterize        "-NN 2 -clust_nvox 40"               \
-            -opacity            5                                   \
-            -prefix             ${1}.results/chauffeur/${stim}             \
-            -set_xhairs         OFF                                 \
-            -montx 3 -monty 3                                       \
-            -label_mode 1 -label_size 4
+        glts=("0" "1")
+        for glt in ${glts[@]}; do
+            @chauffeur_afni                                             \
+                -ulay               ${1}.results/anat_final.*.HEAD      \
+                -ulay_range         0% 130%                             \
+                -olay               ${1}.results/stats.${1}+tlrc.HEAD   \
+                -box_focus_slices   AMASK_FOCUS_ULAY                    \
+                -func_range         3                                   \
+                -cbar               Reds_and_Blues_Inv                  \
+                -thr_olay_p2stat    0.05                                \
+                -thr_olay_pside     bisided                             \
+                -olay_alpha         Yes                                 \
+                -olay_boxed         Yes                                 \
+                -set_subbricks      -1 "${event}#${glt}_Coef" "${event}#${glt}_Tstat" \
+                -clusterize        "-NN 2 -clust_nvox 40"               \
+                -opacity            5                                   \
+                -prefix             ${1}.results/chauffeur/${event}#${glt}             \
+                -set_xhairs         OFF                                 \
+                -montx 3 -monty 3                                       \
+                -label_mode 1 -label_size 4
+        done
+
+        echo "Backing up chauffeur to Dropbox"
+        cp -R ${1}.results/chauffeur ~/Dropbox/${1}/${event}/chauffeur
+
         echo "Moving results to sub-folder by session"
+        if [ ! -d "${output_folder}/${1}.${session_prefix}.results" ]; then
+            mkdir "${output_folder}/${1}.${session_prefix}.results"
+        fi
         mv ${1}.results ${output_folder}/${1}.${session_prefix}.results/${event}
         echo "Done"
     done
