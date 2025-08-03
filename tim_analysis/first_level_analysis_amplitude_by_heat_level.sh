@@ -167,6 +167,10 @@ task() {
     bash ${events_conversion_script_path} -s ${session} -r ${runs} --subject ${1} --input ${input_folder} --lag ${lag}
 
     if [ $compute_sswarper = true ]; then
+        echo "Checking if SSWarper exists for ${1}"
+        if [ -d ${input_folder}/${1}/${session_prefix}/anat_warped ]; then
+            echo "Found anat_warped folder for ${1}, deleting it"
+            rm -r ${input_folder}/${1}/${session_prefix}/anat_warped
         echo "Running SSWarper on ${1}"
         sswarper2 -input ${input_folder}/${1}/${session_prefix}/anat/${1}_${session_prefix}_T1w.nii.gz \
             -base MNI152_2009_template_SSW.nii.gz \
@@ -222,7 +226,7 @@ task() {
                 ${input_folder}/${1}/${session_prefix}/func/timings/amp_${event}.1D \
             -regress_stim_labels ${event} \
             -regress_stim_types AM2 \
-            -regress_basis 'BLOCK(3,1)' \
+            -regress_basis 'BLOCK(4,1)' \
             -regress_opts_3dD \
             -jobs 8 \
             -regress_motion_per_run \
