@@ -227,8 +227,8 @@ for tim_run in range(1, runs + 1):
         for file in os.listdir(func_path):
             if file not in current_files_in_path:
                 print(f"Handling file {file}")
-                if "CBU_WAR" not in file:
-                    print("Not a WAR file. Skipping")
+                if "CBU_TIM" not in file:
+                    print("Not a TIM file. Skipping")
                     continue
                 suffix = get_suffix(file)
                 echo = get_echo(file)
