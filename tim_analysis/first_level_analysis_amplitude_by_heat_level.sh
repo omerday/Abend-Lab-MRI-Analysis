@@ -252,13 +252,20 @@ task() {
         mv proc.${1} ${1}.results/proc.${1}
         mv output.proc.${1} ${1}.results/output.proc.${1}
 
+        echo "Masking the data for chauffeur"
+        3dcalc \
+            -a ${1}.results/stats.${1}+tlrc      \
+            -b ${1}.results/mask_epi_anat+tlrc   \
+            -exp 'a*b' \
+            -prefix ${1}.results/masked_stats
+
         echo "Exporting images using @chauffeur_afni"
         glts=("0" "1")
         for glt in ${glts[@]}; do
             @chauffeur_afni                                             \
                 -ulay               ${1}.results/anat_final.*.HEAD      \
                 -ulay_range         0% 130%                             \
-                -olay               ${1}.results/stats.${1}+tlrc.HEAD   \
+                -olay               ${1}.results/masked_stats.${1}+tlrc.HEAD   \
                 -box_focus_slices   AMASK_FOCUS_ULAY                    \
                 -func_range         3                                   \
                 -cbar               Reds_and_Blues_Inv                  \

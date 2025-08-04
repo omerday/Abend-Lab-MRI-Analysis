@@ -241,7 +241,14 @@ task() {
         -execute
 
     echo "Backing up QC to Dropbox"
-    cp -R ${1}.QC_${1} ~/Dropbox/${1}.scr/QC
+    cp -R ${1}.results/QC_${1} ~/Dropbox/${1}.scr/QC
+
+    echo "Masking the data for chauffeur"
+    3dcalc \
+        -a ${1}.results/stats.${1}+tlrc      \
+        -b ${1}.results/mask_epi_anat+tlrc   \
+        -exp 'a*b' \
+        -prefix ${1}.results/masked_stats
 
     echo "Done running afni_proc.py for subject ${1}"
     echo "Exporting images using @chauffeur_afni"
@@ -250,7 +257,7 @@ task() {
         @chauffeur_afni                                             \
             -ulay               ${1}.results/anat_final.*.HEAD      \
             -ulay_range         0% 130%                             \
-            -olay               ${1}.results/stats.${1}+tlrc.HEAD   \
+            -olay               ${1}.results/masked_stats.${1}+tlrc.HEAD   \
             -box_focus_slices   AMASK_FOCUS_ULAY                    \
             -func_range         3                                   \
             -cbar               Reds_and_Blues_Inv                  \
