@@ -131,7 +131,7 @@ task() {
 
     echo "Moving previous outputs for subject"
     time=$(date +"%H").$(date +%M)
-    old_results_path=${1}.$session_prefix.results
+    old_results_path=${1}.$session_prefix.scr.results
     if [ -d "${output_folder}/$old_results_path" ]; then
         if [ -f proc.${1} ]; then
             mv ${output_folder}/proc.${1} ${output_folder}/${old_results_path}
@@ -171,6 +171,7 @@ task() {
         if [ -d ${input_folder}/${1}/${session_prefix}/anat_warped ]; then
             echo "Found anat_warped folder for ${1}, deleting it"
             rm -r ${input_folder}/${1}/${session_prefix}/anat_warped
+        fi
         echo "Running SSWarper on ${1}"
         sswarper2 -input ${input_folder}/${1}/${session_prefix}/anat/${1}_${session_prefix}_T1w.nii.gz \
             -base MNI152_2009_template_SSW.nii.gz \
@@ -241,14 +242,15 @@ task() {
         -execute
 
     echo "Backing up QC to Dropbox"
+    mkdir ~/Dropbox/${1}.scr
     cp -R ${1}.results/QC_${1} ~/Dropbox/${1}.scr/QC
 
     echo "Masking the data for chauffeur"
     3dcalc \
         -a ${1}.results/stats.${1}+tlrc      \
-        -b ${1}.results/mask_epi_anat+tlrc   \
+        -b ${1}.results/mask_epi_anat.${1}+tlrc   \
         -exp 'a*b' \
-        -prefix ${1}.results/masked_stats
+        -prefix ${1}.results/masked_stats.${1}
 
     echo "Done running afni_proc.py for subject ${1}"
     echo "Exporting images using @chauffeur_afni"
@@ -275,10 +277,10 @@ task() {
     done
 
     echo "Backing up chauffeur to Dropbox"
-    cp -R ${1}/chauffeur ~/Dropbox/${1}.scr/chauffeur
+    cp -R ${1}.results/chauffeur ~/Dropbox/${1}.scr/chauffeur
 
     echo "Moving results to sub-folder by session"
-    mv ${1}.results ${output_folder}/${1}.${session_prefix}.results
+    mv ${1}.results ${output_folder}/${1}.${session_prefix}.scr.results
     echo "Done"
 }
 

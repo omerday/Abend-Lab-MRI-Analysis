@@ -171,6 +171,7 @@ task() {
         if [ -d ${input_folder}/${1}/${session_prefix}/anat_warped ]; then
             echo "Found anat_warped folder for ${1}, deleting it"
             rm -r ${input_folder}/${1}/${session_prefix}/anat_warped
+        fi
         echo "Running SSWarper on ${1}"
         sswarper2 -input ${input_folder}/${1}/${session_prefix}/anat/${1}_${session_prefix}_T1w.nii.gz \
             -base MNI152_2009_template_SSW.nii.gz \
@@ -192,55 +193,107 @@ task() {
     events=("pre_pain" "pain" "square_onset")
     for event in ${events[@]}; do
         echo "Running afni_proc.py for subject ${1} and event ${event}"
-        afni_proc.py \
-            -subj_id ${1} \
-            ${dsets} \
-            -echo_times 13.6 25.96 38.3 \
-            -copy_anat \
-                ${input_folder}/${1}/${session_prefix}/anat_warped/anatSS.${1}.nii \
-            -anat_has_skull no \
-            -anat_follower anat_w_skull anat ${input_folder}/${1}/${session_prefix}/anat_warped/anatU.${1}.nii \
-            -blocks \
-                tshift align tlrc volreg mask combine blur scale regress \
-            -html_review_style pythonic \
-            -align_unifize_epi local \
-            -align_opts_aea \
-            -cost lpc+ZZ \
-            -giant_move \
-            -check_flip \
-            -volreg_align_to MIN_OUTLIER \
-            -volreg_align_e2a \
-            -volreg_tlrc_warp \
-            -volreg_compute_tsnr yes \
-            -mask_epi_anat yes \
-            -mask_segment_anat yes \
-            -combine_method OC \
-            -blur_size 4 \
-            -tlrc_base MNI152_2009_template.nii.gz \
-            -tlrc_NL_warp \
-            -tlrc_NL_warped_dsets \
-                ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.nii \
-                ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.aff12.1D \
-                ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}_WARP.nii \
-            -regress_stim_times \
-                ${input_folder}/${1}/${session_prefix}/func/timings/amp_${event}.1D \
-            -regress_stim_labels ${event} \
-            -regress_stim_types AM2 \
-            -regress_basis 'BLOCK(4,1)' \
-            -regress_opts_3dD \
-            -jobs 8 \
-            -regress_motion_per_run \
-            -regress_censor_motion 0.5 \
-            -regress_censor_outliers 0.05 \
-            -regress_reml_exec \
-            -regress_compute_fitts \
-            -regress_make_ideal_sum sum_ideal.1D \
-            -regress_est_blur_epits \
-            -regress_est_blur_errts \
-            -regress_run_clustsim no \
-            -radial_correlate_blocks tcat volreg regress \
-            -remove_preproc_files \
-            -execute
+        if [[ "$event" == "pain" ]]; then
+            afni_proc.py \
+                -subj_id ${1} \
+                ${dsets} \
+                -echo_times 13.6 25.96 38.3 \
+                -copy_anat \
+                    ${input_folder}/${1}/${session_prefix}/anat_warped/anatSS.${1}.nii \
+                -anat_has_skull no \
+                -anat_follower anat_w_skull anat ${input_folder}/${1}/${session_prefix}/anat_warped/anatU.${1}.nii \
+                -blocks \
+                    tshift align tlrc volreg mask combine blur scale regress \
+                -html_review_style pythonic \
+                -align_unifize_epi local \
+                -align_opts_aea \
+                -cost lpc+ZZ \
+                -giant_move \
+                -check_flip \
+                -volreg_align_to MIN_OUTLIER \
+                -volreg_align_e2a \
+                -volreg_tlrc_warp \
+                -volreg_compute_tsnr yes \
+                -mask_epi_anat yes \
+                -mask_segment_anat yes \
+                -combine_method OC \
+                -blur_size 4 \
+                -tlrc_base MNI152_2009_template.nii.gz \
+                -tlrc_NL_warp \
+                -tlrc_NL_warped_dsets \
+                    ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.nii \
+                    ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.aff12.1D \
+                    ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}_WARP.nii \
+                -regress_stim_times \
+                    ${input_folder}/${1}/${session_prefix}/func/timings/amp_${event}.1D \
+                -regress_stim_labels ${event} \
+                -regress_stim_types AM2 \
+                -regress_basis 'BLOCK(4,1)' \
+                -regress_opts_3dD \
+                -jobs 8 \
+                -regress_motion_per_run \
+                -regress_censor_motion 0.5 \
+                -regress_censor_outliers 0.05 \
+                -regress_reml_exec \
+                -regress_compute_fitts \
+                -regress_make_ideal_sum sum_ideal.1D \
+                -regress_est_blur_epits \
+                -regress_est_blur_errts \
+                -regress_run_clustsim no \
+                -radial_correlate_blocks tcat volreg regress \
+                -remove_preproc_files \
+                -execute
+        else
+            afni_proc.py \
+                -subj_id ${1} \
+                ${dsets} \
+                -echo_times 13.6 25.96 38.3 \
+                -copy_anat \
+                    ${input_folder}/${1}/${session_prefix}/anat_warped/anatSS.${1}.nii \
+                -anat_has_skull no \
+                -anat_follower anat_w_skull anat ${input_folder}/${1}/${session_prefix}/anat_warped/anatU.${1}.nii \
+                -blocks \
+                    tshift align tlrc volreg mask combine blur scale regress \
+                -html_review_style pythonic \
+                -align_unifize_epi local \
+                -align_opts_aea \
+                -cost lpc+ZZ \
+                -giant_move \
+                -check_flip \
+                -volreg_align_to MIN_OUTLIER \
+                -volreg_align_e2a \
+                -volreg_tlrc_warp \
+                -volreg_compute_tsnr yes \
+                -mask_epi_anat yes \
+                -mask_segment_anat yes \
+                -combine_method OC \
+                -blur_size 4 \
+                -tlrc_base MNI152_2009_template.nii.gz \
+                -tlrc_NL_warp \
+                -tlrc_NL_warped_dsets \
+                    ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.nii \
+                    ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.aff12.1D \
+                    ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}_WARP.nii \
+                -regress_stim_times \
+                    ${input_folder}/${1}/${session_prefix}/func/timings/amp_${event}.1D \
+                -regress_stim_labels ${event} \
+                -regress_stim_types AM2 \
+                -regress_basis 'BLOCK(2,1)' \
+                -regress_opts_3dD \
+                -jobs 8 \
+                -regress_motion_per_run \
+                -regress_censor_motion 0.5 \
+                -regress_censor_outliers 0.05 \
+                -regress_reml_exec \
+                -regress_compute_fitts \
+                -regress_make_ideal_sum sum_ideal.1D \
+                -regress_est_blur_epits \
+                -regress_est_blur_errts \
+                -regress_run_clustsim no \
+                -radial_correlate_blocks tcat volreg regress \
+                -remove_preproc_files \
+                -execute
+        fi
 
         echo "Done running afni_proc.py for subject ${1} and event ${event}"
 
@@ -255,9 +308,9 @@ task() {
         echo "Masking the data for chauffeur"
         3dcalc \
             -a ${1}.results/stats.${1}+tlrc      \
-            -b ${1}.results/mask_epi_anat+tlrc   \
+            -b ${1}.results/mask_epi_anat.${1}+tlrc   \
             -exp 'a*b' \
-            -prefix ${1}.results/masked_stats
+            -prefix ${1}.results/masked_stats.${1}
 
         echo "Exporting images using @chauffeur_afni"
         glts=("0" "1")
