@@ -262,6 +262,8 @@ task() {
             -olay_alpha         Yes                                 \
             -olay_boxed         Yes                                 \
             -set_subbricks      -1 "${stim}_blck#0_Coef" "${stim}_blck#0_Tstat" \
+            -set_dicom_xyz      -20 -8 -16                          \
+            -delta_slices       6 15 10                             \
             -opacity            5                                   \
             -prefix             ${1}.results/QC/${stim}             \
             -set_xhairs         OFF                                 \

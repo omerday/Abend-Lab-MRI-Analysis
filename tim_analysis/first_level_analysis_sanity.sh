@@ -258,6 +258,8 @@ task() {
             -set_subbricks      -1 "${stim}#0_Coef" "${stim}#0_Tstat" \
             -clusterize        "-NN 2 -clust_nvox 40"               \
             -opacity            5                                   \
+            -set_dicom_xyz      -20 -8 -16                          \
+            -delta_slices       6 15 10                             \       
             -prefix             ${1}.results/QC/${stim}             \
             -set_xhairs         OFF                                 \
             -montx 3 -monty 3                                       \

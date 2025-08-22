@@ -155,7 +155,7 @@ for stimulus in ${stimuli[@]}; do
             -zerocolor          white                                           \
             -prefix             chauffeur/${stimulus}_${olay}                   \
             -set_xhairs         OFF                                             \
-            -set_dicom_xyz      -10 0 0                                         \
+            -set_dicom_xyz      -20 -8 -16                                         \
             -delta_slices       6 15 10                                         \
             -label_color        black                                           \
             -montx 3 -monty 3                                                   \

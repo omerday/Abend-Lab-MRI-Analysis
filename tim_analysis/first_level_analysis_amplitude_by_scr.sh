@@ -269,6 +269,8 @@ task() {
             -olay_boxed         Yes                                 \
             -set_subbricks      -1 "${reg}_Coef" "${reg}_Tstat" \
             -clusterize        "-NN 2 -clust_nvox 40"               \
+            -set_dicom_xyz      -20 -8 -16                          \
+            -delta_slices       6 15 10                             \ 
             -opacity            5                                   \
             -prefix             ${1}.results/chauffeur/${reg}          \
             -set_xhairs         OFF                                 \
