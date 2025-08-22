@@ -87,23 +87,23 @@ for subject in ${subject_ids[@]}; do
     dsets="${dsets} ${subject} ${input_folder}/${subject}.ses-1.scr.results/stats.${subject}+tlrc[SCR#1_Coef]"
 done
 
-if [ -f "group_mask_olap.7+tlrc.HEAD" ]; then
-    rm group_mask_olap.7+tlrc.HEAD
+if [ -f "group_mask_olap.4+tlrc.HEAD" ]; then
+    rm group_mask_olap.4+tlrc.HEAD
 fi
 
-if [ -f "group_mask_olap.7+tlrc.BRIK.gz" ]; then
-    rm group_mask_olap.7+tlrc.BRIK.gz
+if [ -f "group_mask_olap.4+tlrc.BRIK.gz" ]; then
+    rm group_mask_olap.4+tlrc.BRIK.gz
 fi
 
 3dmask_tool -input ${mask_epi_anat_files} \
-    -prefix group_mask_olap.7 \
-    -frac 0.7
+    -prefix group_mask_olap.4 \
+    -frac 0.4
 
 3dttest++ -prefix 3dttest_TIM_fMRI_SCR \
     -setA SCR#1 ${dsets}
 
 3dcalc  -a 3dttest_TIM_fMRI_SCR+tlrc.HEAD \
-        -b group_mask_olap.7+tlrc.HEAD \
+        -b group_mask_olap.4+tlrc.HEAD \
         -expr 'a*b' \
         -prefix 3dttest_TIM_fMRI_SCR_masked
 
