@@ -84,7 +84,7 @@ fi
 dsets=""
 for subject in ${subject_ids[@]}; do
     mask_epi_anat_files="${mask_epi_anat_files} ${input_folder}/${subject}.ses-1.results/mask_epi_anat.*+tlrc.HEAD"
-    dsets="${dsets} ${subject} ${input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[SCR#1_Coef]"
+    dsets="${dsets} ${subject} ${input_folder}/${subject}.ses-1.scr.results/stats.${subject}+tlrc[SCR#1_Coef]"
 done
 
 if [ -f "group_mask_olap.7+tlrc.HEAD" ]; then
@@ -100,8 +100,7 @@ fi
     -frac 0.7
 
 3dttest++ -prefix 3dttest_TIM_fMRI_SCR \
-    -setA SCR#1 ${dsets} \
-    -mask group_mask_olap.7+tlrc \
+    -setA SCR#1 ${dsets}
 
 if [ ! -d chauffeur ]; then
     mkdir chauffeur
