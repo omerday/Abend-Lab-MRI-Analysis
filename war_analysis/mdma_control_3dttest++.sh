@@ -116,22 +116,22 @@ for stimulus in ${stimuli[@]}; do
         control_dsets="${control_dsets} ${subject} ${control_input_folder}/${subject}.ses-1.results/stats.${subject}+tlrc[${stimulus}_blck#0_Coef]"
     done
 
-    if [ -f "group_mask_olap.7+tlrc.HEAD" ]; then
-        rm group_mask_olap.7+tlrc.HEAD
+    if [ -f "group_mask_olap.4+tlrc.HEAD" ]; then
+        rm group_mask_olap.4+tlrc.HEAD
     fi
 
-    if [ -f "group_mask_olap.7+tlrc.BRIK.gz" ]; then
-        rm group_mask_olap.7+tlrc.BRIK.gz
+    if [ -f "group_mask_olap.4+tlrc.BRIK.gz" ]; then
+        rm group_mask_olap.4+tlrc.BRIK.gz
     fi
 
     3dmask_tool -input ${mask_epi_anat_files} \
-        -prefix group_mask_olap.7 \
-        -frac 0.7
+        -prefix group_mask_olap.4 \
+        -frac 0.4
 
     3dttest++ -prefix 3dttest_MDMA_Control_${stimulus} \
         -setA MDMA ${mdma_dsets} \
         -setB Control ${control_dsets} \
-        -mask group_mask_olap.7+tlrc \
+        -mask group_mask_olap.4+tlrc \
 
     if [ ! -d chauffeur]; then
         mkdir chauffeur
