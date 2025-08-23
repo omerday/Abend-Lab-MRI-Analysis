@@ -131,7 +131,7 @@ task() {
 
     echo "Moving previous outputs for subject"
     time=$(date +"%H").$(date +%M)
-    old_results_path=${1}.$session_prefix.scr.results
+    old_results_path=${1}.$session_prefix.1234.results
     if [ -d "${output_folder}/$old_results_path" ]; then
         if [ -f proc.${1} ]; then
             mv ${output_folder}/proc.${1} ${output_folder}/${old_results_path}
@@ -152,16 +152,16 @@ task() {
     fi
 
     echo "Cleaning up old data on Dropbox"
-    if [ -d ~/Dropbox/${1}.scr.old ]; then
-        rm -r ~/Dropbox/${1}.scr.old
+    if [ -d ~/Dropbox/${1}.1234.old ]; then
+        rm -r ~/Dropbox/${1}.1234.old
     fi
 
     echo "Backing up previous results on Dropbox"
-    if [ -d ~/Dropbox/${1}.scr ]; then
-        mv ~/Dropbox/${1}.scr ~/Dropbox/${1}.scr.old
+    if [ -d ~/Dropbox/${1}.1234 ]; then
+        mv ~/Dropbox/${1}.1234 ~/Dropbox/${1}.1234.old
     fi
 
-    mkdir ~/Dropbox/${1}.scr
+    mkdir ~/Dropbox/${1}.1234
 
     echo "Preparing timing files for subject ${1}"
     bash ${events_conversion_script_path} -s ${session} -r ${runs} --subject ${1} --input ${input_folder} --lag ${lag}
@@ -222,7 +222,7 @@ task() {
             ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.aff12.1D \
             ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}_WARP.nii \
         -regress_stim_times \
-            ${input_folder}/${1}/${session_prefix}/func/timings/scr_amp.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/1234_amp.1D \
         -regress_stim_labels SCR \
         -regress_stim_types AM2 \
         -regress_basis 'BLOCK(2,1)' \
@@ -242,8 +242,8 @@ task() {
         -execute
 
     echo "Backing up QC to Dropbox"
-    mkdir ~/Dropbox/${1}.scr
-    cp -R ${1}.results/QC_${1} ~/Dropbox/${1}.scr/QC
+    mkdir ~/Dropbox/${1}.1234
+    cp -R ${1}.results/QC_${1} ~/Dropbox/${1}.1234/QC
 
     echo "Masking the data for chauffeur"
     3dcalc \
@@ -272,17 +272,17 @@ task() {
             -set_dicom_xyz      -20 -8 -16                          \
             -delta_slices       6 15 10                             \
             -opacity            5                                   \
-            -prefix             ${1}.results/chauffeur/${reg}          \
+            -prefix             ${1}.results/chauffeur/${reg}       \
             -set_xhairs         OFF                                 \
             -montx 3 -monty 3                                       \
             -label_mode 1 -label_size 4
     done
 
     echo "Backing up chauffeur to Dropbox"
-    cp -R ${1}.results/chauffeur ~/Dropbox/${1}.scr/chauffeur
+    cp -R ${1}.results/chauffeur ~/Dropbox/${1}.1234/chauffeur
 
     echo "Moving results to sub-folder by session"
-    mv ${1}.results ${output_folder}/${1}.${session_prefix}.scr.results
+    mv ${1}.results ${output_folder}/${1}.${session_prefix}.1234.results
     echo "Done"
 }
 
