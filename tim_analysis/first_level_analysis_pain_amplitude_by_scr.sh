@@ -131,7 +131,7 @@ task() {
 
     echo "Moving previous outputs for subject"
     time=$(date +"%H").$(date +%M)
-    old_results_path=${1}.$session_prefix.scr.results
+    old_results_path=${1}.$session_prefix.pain.scr.results
     if [ -d "${output_folder}/$old_results_path" ]; then
         if [ -f proc.${1} ]; then
             mv ${output_folder}/proc.${1} ${output_folder}/${old_results_path}
@@ -152,16 +152,16 @@ task() {
     fi
 
     echo "Cleaning up old data on Dropbox"
-    if [ -d ~/Dropbox/${1}.scr.old ]; then
-        rm -r ~/Dropbox/${1}.scr.old
+    if [ -d ~/Dropbox/${1}.pain.scr.old ]; then
+        rm -r ~/Dropbox/${1}.pain.scr.old
     fi
 
     echo "Backing up previous results on Dropbox"
-    if [ -d ~/Dropbox/${1}.scr ]; then
-        mv ~/Dropbox/${1}.scr ~/Dropbox/${1}.scr.old
+    if [ -d ~/Dropbox/${1}.pain.scr ]; then
+        mv ~/Dropbox/${1}.pain.scr ~/Dropbox/${1}.pain.scr.old
     fi
 
-    mkdir ~/Dropbox/${1}.scr
+    mkdir ~/Dropbox/${1}.pain.scr
 
     echo "Preparing timing files for subject ${1}"
     bash ${events_conversion_script_path} -s ${session} -r ${runs} --subject ${1} --input ${input_folder} --lag ${lag}
@@ -222,10 +222,10 @@ task() {
             ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}.aff12.1D \
             ${input_folder}/${1}/${session_prefix}/anat_warped/anatQQ.${1}_WARP.nii \
         -regress_stim_times \
-            ${input_folder}/${1}/${session_prefix}/func/timings/scr_amp.1D \
+            ${input_folder}/${1}/${session_prefix}/func/timings/pain_scr_amp.1D \
         -regress_stim_labels SCR \
         -regress_stim_types AM2 \
-        -regress_basis 'BLOCK(2,1)' \
+        -regress_basis 'BLOCK(4,1)' \
         -regress_opts_3dD \
         -jobs 8 \
         -regress_motion_per_run \
@@ -241,13 +241,9 @@ task() {
         -remove_preproc_files \
         -execute
 
-    echo "Converting QC to PDF"
-    python ~/Documents/Abend-Lab-MRI-Analysis/tim_analysis/convert_qc_to_pdf.py --subject ${1}
-    echo "Done"
-        
     echo "Backing up QC to Dropbox"
-    mkdir ~/Dropbox/${1}.scr
-    cp -R ${1}.results/QC_${1} ~/Dropbox/${1}.scr/QC
+    mkdir ~/Dropbox/${1}.pain.scr
+    cp -R ${1}.results/QC_${1} ~/Dropbox/${1}.pain.scr/QC
 
     echo "Masking the data for chauffeur"
     3dcalc \
@@ -283,10 +279,10 @@ task() {
     done
 
     echo "Backing up chauffeur to Dropbox"
-    cp -R ${1}.results/chauffeur ~/Dropbox/${1}.scr/chauffeur
+    cp -R ${1}.results/chauffeur ~/Dropbox/${1}.pain.scr/chauffeur
 
     echo "Moving results to sub-folder by session"
-    mv ${1}.results ${output_folder}/${1}.${session_prefix}.scr.results
+    mv ${1}.results ${output_folder}/${1}.${session_prefix}.pain.scr.results
     echo "Done"
 }
 

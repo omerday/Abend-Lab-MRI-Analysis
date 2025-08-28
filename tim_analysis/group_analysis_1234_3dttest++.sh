@@ -83,8 +83,8 @@ fi
 
 dsets=""
 for subject in ${subject_ids[@]}; do
-    mask_epi_anat_files="${mask_epi_anat_files} ${input_folder}/${subject}.ses-1.1234.results/mask_epi_anat.*+tlrc.HEAD"
-    dsets="${dsets} ${subject} ${input_folder}/${subject}.ses-1.1234.results/stats.${subject}+tlrc[SCR#1_Coef]"
+    mask_epi_anat_files="${mask_epi_anat_files} ${input_folder}/${subject}.ses-1.antic.1234.results/mask_epi_anat.*+tlrc.HEAD"
+    dsets="${dsets} ${subject} ${input_folder}/${subject}.ses-1.antic.1234.results/stats.${subject}+tlrc[SCR#1_Coef]"
 done
 
 if [ -f "group_mask_olap.4+tlrc.HEAD" ]; then
@@ -99,13 +99,13 @@ fi
     -prefix group_mask_olap.4 \
     -frac 0.4
 
-3dttest++ -prefix 3dttest_TIM_fMRI_SCR \
+3dttest++ -prefix 3dttest_TIM_fMRI_ANTIC_1234_SCR \
     -setA SCR#1 ${dsets}
 
-3dcalc  -a 3dttest_TIM_fMRI_SCR+tlrc.HEAD \
+3dcalc  -a 3dttest_TIM_fMRI_ANTIC_1234_SCR+tlrc.HEAD \
         -b group_mask_olap.4+tlrc.HEAD \
         -expr 'a*b' \
-        -prefix 3dttest_TIM_fMRI_SCR_masked
+        -prefix 3dttest_TIM_fMRI_ANTIC_1234_SCR_masked
 
 if [ ! -d chauffeur ]; then
     mkdir chauffeur
@@ -114,7 +114,7 @@ fi
 @chauffeur_afni                                                         \
     -ulay               MNI152_2009_template.nii.gz                     \
     -ulay_range         0% 130%                                         \
-    -olay               ./3dttest_TIM_fMRI_SCR_masked+tlrc.HEAD    \
+    -olay               ./3dttest_TIM_fMRI_ANTIC_1234_SCR_masked+tlrc.HEAD    \
     -box_focus_slices   AMASK_FOCUS_ULAY                                \
     -func_range         3                                               \
     -cbar               Reds_and_Blues_Inv                              \
@@ -125,7 +125,7 @@ fi
     -set_subbricks      -1 "SCR#1_Tstat" "SCR#1_Tstat"              \
     -opacity            5                                               \
     -zerocolor          white                                           \
-    -prefix             chauffeur/1234/SCR                  \
+    -prefix             chauffeur/ANTIC/1234                 \
     -clusterize        "-NN 2 -clust_nvox 20"               \
     -set_xhairs         OFF                                             \
     -set_dicom_xyz      -20 -8 -16                                         \
