@@ -241,6 +241,10 @@ task() {
         -remove_preproc_files \
         -execute
 
+    echo "Converting QC to PDF"
+    python ~/Documents/Abend-Lab-MRI-Analysis/tim_analysis/convert_qc_to_pdf.py --subject ${1}
+    echo "Done"
+
     echo "Backing up QC to Dropbox"
     mkdir ~/Dropbox/${1}.1234
     cp -R ${1}.results/QC_${1} ~/Dropbox/${1}.1234/QC
