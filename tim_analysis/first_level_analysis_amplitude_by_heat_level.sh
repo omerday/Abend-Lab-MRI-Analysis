@@ -177,7 +177,7 @@ task() {
             -base MNI152_2009_template_SSW.nii.gz \
             -subid ${1} -odir ${input_folder}/${1}/$session_prefix/anat_warped \
             -giant_move \
-            -cost_nl_final nmi \
+            -cost_nl_final lpa \
             -minp 8 \
             -deoblique_refitly
     fi
@@ -285,7 +285,7 @@ task() {
                 -regress_censor_motion 0.5 \
                 -regress_censor_outliers 0.05 \
                 -regress_reml_exec \
-                -regress_compute_fitts \
+                -regress_compute_fitts no \
                 -regress_make_ideal_sum sum_ideal.1D \
                 -regress_est_blur_epits \
                 -regress_est_blur_errts \
@@ -353,18 +353,16 @@ task() {
     done
 }
 
-if [ $num_procs -eq 1 ]; then
-    for subj in ${subject_ids[@]}; do
-        task "$subj" > logs/${subj}.txt
+if [ "$num_procs" -eq 1 ]; then
+    for subj in "${subject_ids[@]}"; do
+        task "$subj" > "logs/${subj}.txt"
     done
 else
-    for subj in ${subject_ids[@]}; do
-        while [ $num_jobs -ge $num_procs ]
-        do
+    for subj in "${subject_ids[@]}"; do
+        while (($(jobs -r -p | wc -l) >= num_procs)); do
             wait -n
         done
-        num_jobs=$num_jobs+1
-        task "$subj" > logs/${subj}.txt && num_jobs=$num_jobs-1 &
+        task "$subj" > "logs/${subj}.txt" &
     done
 fi
 
