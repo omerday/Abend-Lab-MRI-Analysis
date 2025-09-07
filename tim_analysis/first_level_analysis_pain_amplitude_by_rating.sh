@@ -239,7 +239,6 @@ task() {
         -regress_run_clustsim no \
         -radial_correlate_blocks tcat volreg regress \
         -remove_preproc_files \
-        -write_3dD_prefix stats.${1}.nii \
         -execute
 
     echo "Backing up QC to Dropbox"
@@ -287,18 +286,16 @@ task() {
     echo "Done"
 }
 
-if [ $num_procs -eq 1 ]; then
-    for subj in ${subject_ids[@]}; do
-        task "$subj" > logs/${subj}.txt
+if [ "$num_procs" -eq 1 ]; then
+    for subj in "${subject_ids[@]}"; do
+        task "$subj" > "logs/${subj}.txt"
     done
 else
-    for subj in ${subject_ids[@]}; do
-        while [ $num_jobs -ge $num_procs ]
-        do
+    for subj in "${subject_ids[@]}"; do
+        while (($(jobs -r -p | wc -l) >= num_procs)); do
             wait -n
         done
-        num_jobs=$num_jobs+1
-        task "$subj" > logs/${subj}.txt && num_jobs=$num_jobs-1 &
+        task "$subj" > "logs/${subj}.txt" &
     done
 fi
 
