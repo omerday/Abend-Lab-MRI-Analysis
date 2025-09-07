@@ -256,6 +256,16 @@ for current_file in os.listdir():
         df.to_csv(f"./{session}/func/{new_file_name}", sep="\t", index=False)
         print(f"Created file {new_file_name}")
 
+# Read pain rating files
+pain_ratings = None
+for current_file in os.listdir():
+    if "Pain" in current_file and current_file.endswith(".csv"):
+        print(f"Handling file {current_file}")
+        df = pd.read_csv(current_file)
+        pain_ratings = df["Pain"]
+if pain_ratings is None:
+    print("WARNING - No pain ratings found. Quitting.")
+
 for file in os.listdir(f"."):
     if file.endswith("_era.txt") and "_2s" in file:
         print(f"Handling file {file} for anticipation SCR amplification")
@@ -269,7 +279,8 @@ for file in os.listdir(f"."):
         era_to_timing.get_pain_scr_timing_file(era_path=f"./{file}",
                                                events_path=f"./{session}/func",
                                                output_path=f"./{session}/func",
-                                               blocks=runs)
+                                               blocks=runs,
+                                               pain_ratings=pain_ratings)
 
 if era_path:
     os.chdir("..")
