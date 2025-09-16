@@ -118,7 +118,7 @@ for i in $(seq 1 $RUNS); do
     [ -f pain_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 - lag_val"*"$3}' pain_scr_amplitude_run-${i}.txt > timings/pain_scr_amp_run-${i}.txt
     [ -f timings/pain_scr_amp_run-${i}.txt ] && echo `cat timings/pain_scr_amp_run-${i}.txt` >> timings/pain_scr_amp.1D
 
-    [ -f pain_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 + 2 - lag_val"*"$4}' pain_scr_amplitude_run-${i}.txt > timings/pain_rating_amp_run-${i}.txt
+    [ -f pain_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 - lag_val"*"$4}' pain_scr_amplitude_run-${i}.txt > timings/pain_rating_amp_run-${i}.txt
     [ -f timings/pain_rating_amp_run-${i}.txt ] && echo `cat timings/pain_rating_amp_run-${i}.txt` >> timings/pain_rating_amp.1D
 done
 
