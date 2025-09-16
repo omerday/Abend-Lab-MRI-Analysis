@@ -124,12 +124,12 @@ done
 
 # Now convert to AFNI format using timing_tool.py
 cd timings
-timing_tool.py -fsl_timing_files low_temp_pre_pain*.txt -write_timing low_temp_pre_pain.1D -overwrite
-timing_tool.py -fsl_timing_files med_temp_pre_pain*.txt -write_timing med_temp_pre_pain.1D -overwrite
-timing_tool.py -fsl_timing_files high_temp_pre_pain*.txt -write_timing high_temp_pre_pain.1D -overwrite
+timing_tool.py -fsl_timing_files low_temp_pre_pain*.txt -write_timing low_temp_pre_pain.1D
+timing_tool.py -fsl_timing_files med_temp_pre_pain*.txt -write_timing med_temp_pre_pain.1D
+timing_tool.py -fsl_timing_files high_temp_pre_pain*.txt -write_timing high_temp_pre_pain.1D
 
-timing_tool.py -fsl_timing_files green_square_onset*.txt -write_timing green_square_onset.1D -overwrite
-timing_tool.py -fsl_timing_files yellow_square_onset*.txt -write_timing yellow_square_onset.1D -overwrite
-timing_tool.py -fsl_timing_files red_square_onset*.txt -write_timing red_square_onset.1D -overwrite
+timing_tool.py -fsl_timing_files green_square_onset*.txt -write_timing green_square_onset.1D
+timing_tool.py -fsl_timing_files yellow_square_onset*.txt -write_timing yellow_square_onset.1D
+timing_tool.py -fsl_timing_files red_square_onset*.txt -write_timing red_square_onset.1D
 
 echo "--- Onset Conversion for ${SUBJECT} Complete ---"

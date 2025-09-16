@@ -28,9 +28,11 @@ def run_step(subject, session, config, analysis_name, step_name):
         "--subject", subject,
         "--session", session,
         "--input", config["input_dir"],
-        "--output", config["output_dir"]
     ]
     
+    if step_name != "create_timings":
+        command.extend(["--output", config["output_dir"]])
+        
     if analysis_name and step_name == "glm":
         command.extend(["--analysis", analysis_name])
 
