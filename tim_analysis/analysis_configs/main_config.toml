@@ -1,0 +1,22 @@
+
+# Main configuration for the fMRI analysis pipeline
+
+# --- Paths ---
+# Absolute path to the directory containing the raw BIDS data.
+input_dir = "/path/to/your/bids_data"
+
+# Absolute path to the directory where all outputs (derivatives) will be saved.
+output_dir = "/path/to/your/derivatives"
+
+# --- Subjects ---
+# Default list of all subjects to be processed.
+# An analysis model can override this by specifying its own subject list.
+all_subjects = ["sub-001", "sub-002", "sub-003", "sub-004", "sub-005"]
+
+# --- AFNI Parameters ---
+# Default parameters used across most analyses.
+# These can be overridden on a per-model basis in analysis_models.toml.
+blur_size = 4.0
+tr = 2.0
+censor_motion_threshold = 0.5
+censor_outlier_threshold = 0.05

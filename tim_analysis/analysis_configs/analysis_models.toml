@@ -1,0 +1,72 @@
+
+# Definitions for each analysis model (GLM variation).
+# Each model is represented as a TOML table.
+
+# --- Model: Sanity Check ---
+# A comprehensive model with multiple regressors and contrasts.
+[sanity_check]
+description = "Sanity check with multiple regressors and contrasts."
+stim_files = [
+    "timings/low_temp_pre_pain.1D",
+    "timings/med_temp_pre_pain.1D",
+    "timings/high_temp_pre_pain.1D",
+    "timings/green_square_onset.1D",
+    "timings/yellow_square_onset.1D",
+    "timings/red_square_onset.1D"
+]
+stim_labels = ["low_pre_pain", "med_pre_pain", "high_pre_pain", "green_square", "yellow_square", "red_square"]
+basis = "BLOCK(3,1)"
+glt = [
+    { sym = "high_pre_pain -low_pre_pain", label = "high-low-pain" },
+    { sym = "high_pre_pain -med_pre_pain", label = "high-med-pain" },
+    { sym = "med_pre_pain -low_pre_pain", label = "med-low-pain" },
+    { sym = "red_square -green_square", label = "red-green-square" },
+    { sym = "red_square -yellow_square", label = "red-yellow-square" },
+    { sym = "yellow_square -green_square", label = "yellow-green-square" }
+]
+
+# --- Model: Pain by Rating ---
+# Pain period amplitude modulated by subjective rating.
+[pain_by_rating]
+description = "Pain period amplitude modulated by subjective rating."
+stim_files = ["timings/pain_rating_amp.1D"]
+stim_labels = ["PAIN"]
+basis = "BLOCK(4,1)"
+glt = []
+
+# --- Model: Pain by SCR ---
+# Pain period amplitude modulated by SCR.
+[pain_by_scr]
+description = "Pain period amplitude modulated by SCR."
+stim_files = ["timings/pain_scr_amp.1D"]
+stim_labels = ["SCR"]
+basis = "BLOCK(4,1)"
+glt = []
+
+# --- Model: Anticipation by SCR ---
+# Anticipation period amplitude modulated by SCR.
+[anticipation_by_scr]
+description = "Anticipation period amplitude modulated by SCR."
+stim_files = ["timings/anticipation_scr_amp.1D"]
+stim_labels = ["SCR"]
+basis = "BLOCK(2,1)"
+glt = []
+
+# --- Model: Anticipation by 1234 ---
+# Anticipation period amplitude modulated by 1,2,3,4 ratings.
+[anticipation_by_1234]
+description = "Anticipation period amplitude modulated by 1,2,3,4 ratings."
+stim_files = ["timings/anticipation_1234_amp.1D"]
+stim_labels = ["SCR"]
+basis = "BLOCK(2,1)"
+glt = []
+
+# --- Model: Amplitude by Heat Level ---
+# Amplitude modulated by heat level.
+[amplitude_by_heat_level]
+description = "Amplitude modulated by heat level."
+stim_files = ["timings/amp_pre_pain.1D", "timings/amp_pain.1D", "timings/amp_square_onset.1D"]
+stim_labels = ["pre_pain", "pain", "square_onset"]
+basis = "BLOCK(2,1)" # Default, can be overridden
+glt = []
+

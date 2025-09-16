@@ -267,14 +267,14 @@ if pain_ratings is None:
     print("WARNING - No pain ratings found. Quitting.")
 
 for file in os.listdir(f"."):
-    if file.endswith("_era.txt") and "_2s" in file:
+    if file.endswith("_era_2s.txt"):
         print(f"Handling file {file} for anticipation SCR amplification")
         era_to_timing.get_anticipation_scr_timing_file(era_path=f"./{file}",
                                                       events_path=f"./{session}/func",
                                                       output_path=f"./{session}/func",
                                                       blocks=runs)
         
-    if file.endswith("_era.txt") and "_4s" in file:
+    if file.endswith("_era_4s.txt"):
         print(f"Handling file {file} for pain SCR amplification")
         era_to_timing.get_pain_scr_timing_file(era_path=f"./{file}",
                                                events_path=f"./{session}/func",
