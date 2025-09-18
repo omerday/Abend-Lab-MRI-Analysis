@@ -97,9 +97,8 @@ afni_proc.py \
     -tlrc_NL_warp \
     -tlrc_NL_warped_dsets \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.nii" \
-        "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.aff12.1D" \
-        "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}_WARP.nii" \
-    -remove_preproc_files \
+        "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.aff12.1D" \r        "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}_WARP.nii" \
+    -html_review_style pythonic \
     -execute
 
 echo "--- Functional Preprocessing for ${SUBJECT} Complete ---"

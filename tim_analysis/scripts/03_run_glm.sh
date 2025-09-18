@@ -61,12 +61,11 @@ TIMING_DIR="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func"
 
 # --- Load Model Configuration ---
 # This is a simple parser for the TOML file. A more robust solution might use a proper tool.
-MODEL_CONFIG=$(awk -v model="$ANALYSIS_NAME" 
-'/^[\[]/{in_model=0} $0=="["model"]"{in_model=1} in_model' "analysis_configs/analysis_models.toml")
+MODEL_CONFIG=$(awk -v model="$ANALYSIS_NAME" '/^[\[]/{in_model=0} $0=="["model"]"{in_model=1} in_model' "analysis_configs/analysis_models.toml")
 
 STIM_FILES_RAW=$(echo "$MODEL_CONFIG" | grep 'stim_files' | sed 's/stim_files = \[\(.*\)\]/\1/' | tr -d '\"' | tr -d ' ')
 STIM_LABELS_RAW=$(echo "$MODEL_CONFIG" | grep 'stim_labels' | sed 's/stim_labels = \[\(.*\)\]/\1/' | tr -d '\"' | tr -d ' ')
-BASIS=$(echo "$MODEL_CONFIG" | grep 'basis' | sed 's/basis = \"\(.*\)\"/\1/)
+BASIS=$(echo "$MODEL_CONFIG" | grep 'basis' | sed 's/basis = \"\(.*\)\"/\1/')
 
 IFS=',' read -r -a STIM_FILES <<< "$STIM_FILES_RAW"
 IFS=',' read -r -a STIM_LABELS <<< "$STIM_LABELS_RAW"
@@ -102,10 +101,10 @@ mkdir -p "$GLM_OUTPUT_DIR"
 cd "$GLM_OUTPUT_DIR"
 
 # Run afni_proc.py for the GLM
-# Note: We are using -regress_clone_preproc to start from the preprocessed data
+# Note: We are providing the preprocessed datasets directly via -dsets
 afni_proc.py \
     -subj_id "${SUBJECT}_${ANALYSIS_NAME}" \
-    -regress_clone_preproc "$PREPROC_DIR" \
+    -dsets ${PREPROC_DIR}/pb05.${SUBJECT}_preproc.r*.scale+tlrc.HEAD \
     -blocks regress \
     ${REGRESS_STIM_TIMES_ARGS} \
     ${REGRESS_STIM_LABELS_ARGS} \
@@ -113,15 +112,17 @@ afni_proc.py \
     -regress_basis "$BASIS" \
     ${GLT_ARGS} \
     -regress_opts_3dD -jobs 8 \
+    -regress_motion_file ${PREPROC_DIR}/dfile_rall.1D \
     -regress_motion_per_run \
     -regress_censor_motion 0.5 \
     -regress_censor_outliers 0.05 \
     -regress_reml_exec \
+    -regress_no_mask \
     -regress_compute_fitts \
     -regress_make_ideal_sum sum_ideal.1D \
-    -regress_est_blur_epits \
-    -regress_est_blur_errts \
     -regress_run_clustsim no \
+    -remove_preproc_files \
+    -html_review_style pythonic \
     -execute
 
 echo "--- GLM Analysis for ${SUBJECT} Complete ---"
