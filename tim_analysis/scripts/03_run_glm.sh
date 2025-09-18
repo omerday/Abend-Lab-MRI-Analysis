@@ -182,4 +182,26 @@ else
     done
 fi
 
+echo "--- Backing up chauffeur images to Dropbox ---"
+
+DROPBOX_ANALYSIS_DIR=~/Dropbox/${SUBJECT}_${ANALYSIS_NAME}
+CHAUFFEUR_SOURCE_DIR="./${SUBJECT}_${ANALYSIS_NAME}.results/chauffeur_images"
+DEST_DIR="${DROPBOX_ANALYSIS_DIR}/chauffeur"
+
+if [ -d ~/Dropbox ]; then
+    mkdir -p "$DROPBOX_ANALYSIS_DIR"
+    if [ -d "$CHAUFFEUR_SOURCE_DIR" ]; then
+        echo "Copying chauffeur images to ${DEST_DIR}"
+        # Clean up old chauffeur images if they exist
+        if [ -d "$DEST_DIR" ]; then
+            rm -rf "$DEST_DIR"
+        fi
+        cp -R "$CHAUFFEUR_SOURCE_DIR" "$DEST_DIR"
+    else
+        echo "WARNING: Chauffeur images directory not found at ${CHAUFFEUR_SOURCE_DIR}. Skipping copy."
+    fi
+else
+    echo "WARNING: Dropbox directory not found at ~/Dropbox. Skipping copy."
+fi
+
 echo "--- GLM Analysis for ${SUBJECT} Complete ---"

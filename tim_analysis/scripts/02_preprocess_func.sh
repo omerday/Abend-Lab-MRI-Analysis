@@ -102,4 +102,21 @@ afni_proc.py \
     -html_review_style pythonic \
     -execute
 
+echo "--- Converting QC report to PDF and copying to Dropbox ---"
+python /home/user/Documents/Abend-Lab-MRI-Analysis/tim_analysis/convert_qc_to_pdf.py
+
+PDF_SOURCE="./${SUBJECT}_preproc.results/QC_${SUBJECT}_preproc/index.pdf"
+PDF_DEST_NAME="${SUBJECT}_${SESSION_PREFIX}_func_preproc_qc.pdf"
+DROPBOX_PATH=~/Dropbox
+
+if [ -d "$DROPBOX_PATH" ]; then
+    if [ -f "$PDF_SOURCE" ]; then
+        cp "${PDF_SOURCE}" "${DROPBOX_PATH}/${PDF_DEST_NAME}"
+    else
+        echo "WARNING: PDF file not found at ${PDF_SOURCE}. Skipping copy."
+    fi
+else
+    echo "WARNING: Dropbox directory not found at ${DROPBOX_PATH}. Skipping copy."
+fi
+
 echo "--- Functional Preprocessing for ${SUBJECT} Complete ---"
