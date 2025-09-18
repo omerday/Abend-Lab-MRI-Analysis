@@ -40,7 +40,11 @@ def run_step(subject, session, config, analysis_name, step_name):
     
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, f"{subject}_{step_name}.log")
+    
+    log_name_parts = [subject, step_name]
+    if analysis_name and step_name == "glm":
+        log_name_parts.append(analysis_name)
+    log_file_path = os.path.join(log_dir, f"{'_'.join(log_name_parts)}.log")
 
     with open(log_file_path, "w") as log_file:
         process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT)
@@ -54,56 +58,57 @@ def run_step(subject, session, config, analysis_name, step_name):
         return False
 
 def run_group_analysis(config, analysis_models, args):
-    """Runs the group analysis for a given model."""
+    """Runs the group analysis for given model(s)."""
     if not args.analysis:
         print("Error: --analysis is required for the group_analysis step.")
         return
 
-    model = analysis_models.get(args.analysis, {})
-    if not model:
-        print(f"Error: Analysis model '{args.analysis}' not found.")
-        return
+    for analysis_name in args.analysis:
+        model = analysis_models.get(analysis_name, {})
+        if not model:
+            print(f"Error: Analysis model '{analysis_name}' not found.")
+            continue
 
-    group_analysis_config = model.get("group_analysis")
-    if not group_analysis_config:
-        print(f"Error: No group_analysis configuration for model '{args.analysis}'.")
-        return
+        group_analysis_config = model.get("group_analysis")
+        if not group_analysis_config:
+            print(f"Error: No group_analysis configuration for model '{analysis_name}'.")
+            continue
 
-    subjects = model.get("subjects", config.get("all_subjects", []))
-    if not subjects:
-        print("No subjects found for this analysis.")
-        return
+        subjects = model.get("subjects", config.get("all_subjects", []))
+        if not subjects:
+            print(f"No subjects found for this analysis '{analysis_name}'.")
+            continue
 
-    script_path = os.path.join("scripts", "04_run_group_analysis.sh")
-    if not os.path.exists(script_path):
-        print(f"Error: Group analysis script not found at {script_path}")
-        return
+        script_path = os.path.join("scripts", "04_run_group_analysis.sh")
+        if not os.path.exists(script_path):
+            print(f"Error: Group analysis script not found at {script_path}")
+            return
 
-    command = [
-        "bash", script_path,
-        "--analysis", args.analysis,
-        "--input", config["output_dir"],
-        "--output", config["output_dir"],
-        "--subjects", ",".join(subjects),
-        "--session", args.session,
-        "--regressor", group_analysis_config["regressor"],
-        "--label", group_analysis_config["label"],
-    ]
+        command = [
+            "bash", script_path,
+            "--analysis", analysis_name,
+            "--input", config["output_dir"],
+            "--output", config["output_dir"],
+            "--subjects", ",".join(subjects),
+            "--session", args.session,
+            "--regressor", group_analysis_config["regressor"],
+            "--label", group_analysis_config["label"],
+        ]
 
-    print(f"Executing group analysis: {' '.join(command)}")
-    
-    log_dir = "logs"
-    os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, f"group_analysis_{args.analysis}.log")
+        print(f"Executing group analysis for {analysis_name}: {' '.join(command)}")
+        
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        log_file_path = os.path.join(log_dir, f"group_analysis_{analysis_name}.log")
 
-    with open(log_file_path, "w") as log_file:
-        process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT)
-        process.wait()
+        with open(log_file_path, "w") as log_file:
+            process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT)
+            process.wait()
 
-    if process.returncode == 0:
-        print(f"Successfully completed group analysis for {args.analysis}. Log: {log_file_path}")
-    else:
-        print(f"Error running group analysis for {args.analysis}. Check log for details: {log_file_path}")
+        if process.returncode == 0:
+            print(f"Successfully completed group analysis for {analysis_name}. Log: {log_file_path}")
+        else:
+            print(f"Error running group analysis for {analysis_name}. Check log for details: {log_file_path}")
 
 def process_subject(subject, args):
     """Runs the requested pipeline steps for a single subject."""
@@ -125,30 +130,51 @@ def process_subject(subject, args):
     else:
         steps_to_run = [args.step]
 
-    # This logic needs to be inside the worker now that configs are loaded here.
-    analysis_name = args.analysis
-    if args.analysis and args.step in ["glm", "all"]:
-        model = analysis_models.get(args.analysis, {})
-        if not model:
-            print(f"Warning for {subject}: Analysis model '{args.analysis}' not found in analysis_models.toml.")
+    analysis_names = args.analysis
+    if analysis_names and args.step in ["glm", "all"]:
+        for analysis_name in analysis_names:
+            if analysis_name not in analysis_models:
+                print(f"Warning for {subject}: Analysis model '{analysis_name}' not found in analysis_models.toml.")
 
     for step in steps_to_run:
-        success = run_step(
-            subject=subject,
-            session=args.session,
-            config=main_config,
-            analysis_name=args.analysis,
-            step_name=step
-        )
-        if not success:
-            print(f"Stopping pipeline for {subject} because step '{step}' failed.")
-            break
+        if step == 'glm':
+            if not analysis_names:
+                print(f"Error for {subject}: --analysis is required for 'glm' step.")
+                break
+            
+            all_glm_success = True
+            for analysis_name in analysis_names:
+                print(f"--- Running GLM analysis '{analysis_name}' for Subject: {subject} ---")
+                success = run_step(
+                    subject=subject,
+                    session=args.session,
+                    config=main_config,
+                    analysis_name=analysis_name,
+                    step_name=step
+                )
+                if not success:
+                    all_glm_success = False
+                    break
+            if not all_glm_success:
+                print(f"Stopping pipeline for {subject} because a GLM step failed.")
+                break
+        else:
+            success = run_step(
+                subject=subject,
+                session=args.session,
+                config=main_config,
+                analysis_name=None,
+                step_name=step
+            )
+            if not success:
+                print(f"Stopping pipeline for {subject} because step '{step}' failed.")
+                break
 
 def main():
     """Main function to run the analysis pipeline."""
     parser = argparse.ArgumentParser(description="fMRI Analysis Pipeline Runner")
     parser.add_argument("--subject", help="Specify a single subject ID to process (e.g., sub-001).")
-    parser.add_argument("--analysis", help="Specify the analysis model to run for the 'glm' or 'group_analysis' step.")
+    parser.add_argument("--analysis", nargs='+', help="Specify one or more analysis models to run for the 'glm' or 'group_analysis' step.")
     parser.add_argument("--step", choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all", "group_analysis"], required=True, help="The processing step to execute.")
     parser.add_argument("--session", default="1", help="Specify the session number (e.g., 1).")
     parser.add_argument("--n_procs", type=int, default=1, help="Number of subjects to process in parallel.")
@@ -171,15 +197,20 @@ def main():
     if args.subject:
         subjects_to_process = [args.subject]
     elif args.analysis:
-        model = analysis_models.get(args.analysis, {})
+        # Use subjects from the first analysis model.
+        # Assumes subject lists are consistent across analyses for a single run.
+        first_analysis = args.analysis[0]
+        model = analysis_models.get(first_analysis, {})
         subjects_to_process = model.get("subjects", main_config.get("all_subjects", []))
     else:
         subjects_to_process = main_config.get("all_subjects", [])
 
     # Validate analysis model existence before starting parallel jobs
-    if args.analysis and args.analysis not in analysis_models:
-        print(f"Error: Analysis model '{args.analysis}' not found in analysis_configs/analysis_models.toml. Aborting.")
-        return
+    if args.analysis:
+        for analysis_name in args.analysis:
+            if analysis_name not in analysis_models:
+                print(f"Error: Analysis model '{analysis_name}' not found in analysis_configs/analysis_models.toml. Aborting.")
+                return
 
     if not subjects_to_process:
         print("No subjects found to process. Check your configuration and command-line arguments.")
