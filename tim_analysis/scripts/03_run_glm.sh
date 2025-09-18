@@ -79,12 +79,14 @@ REGRESS_STIM_LABELS_ARGS="-regress_stim_labels ${STIM_LABELS[*]}"
 
 GLT_ARGS=""
 # A simple loop to parse GLT syms and labels
+GLT_LABELS=()
 while read -r line; do
     if [[ $line == *"sym ="* ]]; then
         sym=$(echo "$line" | sed -e 's/.*sym = \"\(.*\)\".*/\1/)
     elif [[ $line == *"label ="* ]]; then
         label=$(echo "$line" | sed -e 's/.*label = \"\(.*\)\".*/\1/)
         GLT_ARGS+="-gltsym 'SYM: ${sym}' -glt_label ${#GLT_ARGS[@]+1} ${label} "
+        GLT_LABELS+=("$label")
     fi
 done <<< "$(echo "$MODEL_CONFIG" | grep -A 2 'glt')"
 
@@ -124,5 +126,60 @@ afni_proc.py \
     -remove_preproc_files \
     -html_review_style pythonic \
     -execute
+
+echo "--- Masking stats and generating images with @chauffeur_afni ---"
+
+RESULTS_DIR="${SUBJECT}_${ANALYSIS_NAME}.results"
+ANAT_FINAL="${PREPROC_DIR}/anat_final.${SUBJECT}_preproc+tlrc.HEAD"
+
+# Mask the stats output with the EPI mask from preprocessing
+3dcalc \
+    -a "${RESULTS_DIR}/stats.${SUBJECT}_${ANALYSIS_NAME}+tlrc.HEAD" \
+    -b "${PREPROC_DIR}/mask_epi_anat.${SUBJECT}_preproc+tlrc.HEAD" \
+    -expr 'a*b' \
+    -prefix "${RESULTS_DIR}/masked_stats.${SUBJECT}_${ANALYSIS_NAME}"
+
+CHAUFFEUR_DIR="${RESULTS_DIR}/chauffeur_images"
+mkdir -p "$CHAUFFEUR_DIR"
+
+# Function to run chauffeur for a given sub-brick label
+run_chauffeur() {
+    local brick_label=$1
+    local output_prefix=$2
+    echo "Generating image for: ${brick_label}"
+    @chauffeur_afni \
+        -ulay "${ANAT_FINAL}" \
+        -ulay_range 0% 130% \
+        -olay "${RESULTS_DIR}/masked_stats.${SUBJECT}_${ANALYSIS_NAME}+tlrc.HEAD" \
+        -box_focus_slices AMASK_FOCUS_ULAY \
+        -func_range 3 \
+        -cbar Reds_and_Blues_Inv \
+        -thr_olay_p2stat 0.05 \
+        -thr_olay_pside bisided \
+        -olay_alpha Yes \
+        -olay_boxed Yes \
+        -set_subbricks -1 "${brick_label}_Coef" "${brick_label}_Tstat" \
+        -clusterize "-NN 2 -clust_nvox 40" \
+        -set_dicom_xyz -20 -8 -16 \
+        -delta_slices 6 15 10 \
+        -opacity 5 \
+        -prefix "${output_prefix}" \
+        -set_xhairs OFF \
+        -montx 3 -monty 3 \
+        -label_mode 1 -label_size 4
+}
+
+# Check if we have explicit GLTs. If so, loop through them.
+if [ ${#GLT_LABELS[@]} -gt 0 ]; then
+    for label in "${GLT_LABELS[@]}"; do
+        run_chauffeur "${label}#0" "${CHAUFFEUR_DIR}/${label}"
+    done
+else
+    # If no GLTs, loop through stim labels for AM2 models (e.g., SCR#0, SCR#1)
+    for label in "${STIM_LABELS[@]}"; do
+        run_chauffeur "${label}#0" "${CHAUFFEUR_DIR}/${label}#0"
+        run_chauffeur "${label}#1" "${CHAUFFEUR_DIR}/${label}#1"
+    done
+fi
 
 echo "--- GLM Analysis for ${SUBJECT} Complete ---"
