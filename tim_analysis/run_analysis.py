@@ -53,6 +53,58 @@ def run_step(subject, session, config, analysis_name, step_name):
         print(f"Error running {step_name} for {subject}. Check log for details: {log_file_path}")
         return False
 
+def run_group_analysis(config, analysis_models, args):
+    """Runs the group analysis for a given model."""
+    if not args.analysis:
+        print("Error: --analysis is required for the group_analysis step.")
+        return
+
+    model = analysis_models.get(args.analysis, {})
+    if not model:
+        print(f"Error: Analysis model '{args.analysis}' not found.")
+        return
+
+    group_analysis_config = model.get("group_analysis")
+    if not group_analysis_config:
+        print(f"Error: No group_analysis configuration for model '{args.analysis}'.")
+        return
+
+    subjects = model.get("subjects", config.get("all_subjects", []))
+    if not subjects:
+        print("No subjects found for this analysis.")
+        return
+
+    script_path = os.path.join("scripts", "04_run_group_analysis.sh")
+    if not os.path.exists(script_path):
+        print(f"Error: Group analysis script not found at {script_path}")
+        return
+
+    command = [
+        "bash", script_path,
+        "--analysis", args.analysis,
+        "--input", config["output_dir"],
+        "--output", config["output_dir"],
+        "--subjects", ",".join(subjects),
+        "--session", args.session,
+        "--regressor", group_analysis_config["regressor"],
+        "--label", group_analysis_config["label"],
+    ]
+
+    print(f"Executing group analysis: {' '.join(command)}")
+    
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    log_file_path = os.path.join(log_dir, f"group_analysis_{args.analysis}.log")
+
+    with open(log_file_path, "w") as log_file:
+        process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT)
+        process.wait()
+
+    if process.returncode == 0:
+        print(f"Successfully completed group analysis for {args.analysis}. Log: {log_file_path}")
+    else:
+        print(f"Error running group analysis for {args.analysis}. Check log for details: {log_file_path}")
+
 def process_subject(subject, args):
     """Runs the requested pipeline steps for a single subject."""
     # Load configs inside the worker process to avoid pickling issues.
@@ -96,8 +148,8 @@ def main():
     """Main function to run the analysis pipeline."""
     parser = argparse.ArgumentParser(description="fMRI Analysis Pipeline Runner")
     parser.add_argument("--subject", help="Specify a single subject ID to process (e.g., sub-001).")
-    parser.add_argument("--analysis", help="Specify the analysis model to run for the 'glm' step.")
-    parser.add_argument("--step", choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all"], required=True, help="The processing step to execute.")
+    parser.add_argument("--analysis", help="Specify the analysis model to run for the 'glm' or 'group_analysis' step.")
+    parser.add_argument("--step", choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all", "group_analysis"], required=True, help="The processing step to execute.")
     parser.add_argument("--session", default="1", help="Specify the session number (e.g., 1).")
     parser.add_argument("--n_procs", type=int, default=1, help="Number of subjects to process in parallel.")
 
@@ -108,6 +160,10 @@ def main():
         analysis_models = toml.load("analysis_configs/analysis_models.toml")
     except FileNotFoundError as e:
         print(f"Error: Configuration file not found. {e}")
+        return
+
+    if args.step == "group_analysis":
+        run_group_analysis(main_config, analysis_models, args)
         return
 
     subjects_to_process = []
@@ -143,6 +199,11 @@ def main():
         # Run sequentially if n_procs is 1
         for subject in subjects_to_process:
             worker_function(subject)
+
+    # After processing all subjects, run group analysis if step is 'all' and analysis is specified
+    if args.step == "all" and args.analysis:
+        print("\n--- All first-level analyses complete, starting group analysis ---")
+        run_group_analysis(main_config, analysis_models, args)
 
     print("--- All processing complete ---")
 

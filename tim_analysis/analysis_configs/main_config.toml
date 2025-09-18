@@ -6,7 +6,7 @@
 input_dir = "/home/user/Documents/TIM/Pilot/Input"
 
 # Absolute path to the directory where all outputs (derivatives) will be saved.
-output_dir = "/media/user/PortableSSD/TIM/Output"
+output_dir = "/home/user/Documents/TIM/Pilot/Output"
 
 # --- Subjects ---
 # Default list of all subjects to be processed.
