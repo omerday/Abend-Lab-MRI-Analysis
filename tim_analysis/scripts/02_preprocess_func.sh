@@ -81,7 +81,7 @@ afni_proc.py \
     -copy_anat "${ANAT_WARPED_DIR}/anatSS.${SUBJECT}.nii" \
     -anat_has_skull no \
     -anat_follower anat_w_skull anat "${ANAT_WARPED_DIR}/anatU.${SUBJECT}.nii" \
-    -blocks tshift align tlrc volreg mask combine blur scale \
+    -blocks tshift align tlrc volreg mask combine blur scale regress\
     -html_review_style pythonic \
     -align_unifize_epi local \
     -align_opts_aea -cost lpc+ZZ -giant_move -check_flip \
@@ -97,7 +97,8 @@ afni_proc.py \
     -tlrc_NL_warp \
     -tlrc_NL_warped_dsets \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.nii" \
-        "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.aff12.1D" \r        "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}_WARP.nii" \
+        "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.aff12.1D" \
+        "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}_WARP.nii" \
     -html_review_style pythonic \
     -execute
 

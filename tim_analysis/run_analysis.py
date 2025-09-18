@@ -53,8 +53,16 @@ def run_step(subject, session, config, analysis_name, step_name):
         print(f"Error running {step_name} for {subject}. Check log for details: {log_file_path}")
         return False
 
-def process_subject(subject, args, main_config, analysis_models):
+def process_subject(subject, args):
     """Runs the requested pipeline steps for a single subject."""
+    # Load configs inside the worker process to avoid pickling issues.
+    try:
+        main_config = toml.load("analysis_configs/main_config.toml")
+        analysis_models = toml.load("analysis_configs/analysis_models.toml")
+    except FileNotFoundError as e:
+        print(f"Error in worker for {subject}: Configuration file not found. {e}")
+        return
+
     print(f"--- Starting Pipeline for Subject: {subject}, Session: {args.session} ---")
     
     steps_to_run = []
@@ -64,6 +72,13 @@ def process_subject(subject, args, main_config, analysis_models):
         steps_to_run = ["create_timings", "preprocess_anat", "preprocess_func"]
     else:
         steps_to_run = [args.step]
+
+    # This logic needs to be inside the worker now that configs are loaded here.
+    analysis_name = args.analysis
+    if args.analysis and args.step in ["glm", "all"]:
+        model = analysis_models.get(args.analysis, {})
+        if not model:
+            print(f"Warning for {subject}: Analysis model '{args.analysis}' not found in analysis_models.toml.")
 
     for step in steps_to_run:
         success = run_step(
@@ -96,15 +111,19 @@ def main():
         return
 
     subjects_to_process = []
+    # Determine subjects to process in the main thread
     if args.subject:
         subjects_to_process = [args.subject]
     elif args.analysis:
+        model = analysis_models.get(args.analysis, {})
         subjects_to_process = model.get("subjects", main_config.get("all_subjects", []))
     else:
         subjects_to_process = main_config.get("all_subjects", [])
 
-    if args.analysis and args.step in ["glm", "all"]:
-        model = analysis_models.get(args.analysis, {})
+    # Validate analysis model existence before starting parallel jobs
+    if args.analysis and args.analysis not in analysis_models:
+        print(f"Error: Analysis model '{args.analysis}' not found in analysis_configs/analysis_models.toml. Aborting.")
+        return
 
     if not subjects_to_process:
         print("No subjects found to process. Check your configuration and command-line arguments.")
@@ -114,7 +133,7 @@ def main():
     print(f"Number of parallel processes: {args.n_procs}")
 
     # Create a partial function with fixed arguments for the worker processes
-    worker_function = partial(process_subject, args=args, main_config=main_config, analysis_models=analysis_models)
+    worker_function = partial(process_subject, args=args)
 
     if args.n_procs > 1:
         with ProcessPoolExecutor(max_workers=args.n_procs) as executor:

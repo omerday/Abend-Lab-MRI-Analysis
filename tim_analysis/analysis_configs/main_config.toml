@@ -6,12 +6,16 @@
 input_dir = "/home/user/Documents/TIM/Pilot/Input"
 
 # Absolute path to the directory where all outputs (derivatives) will be saved.
-output_dir = "/home/user/Documents/TIM/Pilot/Output"
+output_dir = "/media/user/PortableSSD/TIM/Output"
 
 # --- Subjects ---
 # Default list of all subjects to be processed.
 # An analysis model can override this by specifying its own subject list.
-all_subjects = ["sub-500"]
+all_subjects = ["sub-489", "sub-500", "sub-501", "sub-502", 
+                "sub-503", "sub-504", "sub-505", "sub-506", 
+                "sub-507", "sub-508", "sub-509", "sub-510", 
+                "sub-511", "sub-512", "sub-513", "sub-514", 
+                "sub-515", "sub-516"]
 
 # --- AFNI Parameters ---
 # Default parameters used across most analyses.

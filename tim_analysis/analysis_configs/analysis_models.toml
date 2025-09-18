@@ -52,21 +52,38 @@ stim_labels = ["SCR"]
 basis = "BLOCK(2,1)"
 glt = []
 
-# --- Model: Anticipation by 1234 ---
-# Anticipation period amplitude modulated by 1,2,3,4 ratings.
-[anticipation_by_1234]
-description = "Anticipation period amplitude modulated by 1,2,3,4 ratings."
+# --- Model: Anticipation amplitude by bins ---
+# Anticipation period amplitude modulated by 1,2,3,4,5 (bins)
+[anticipation_amplitude_by_bins]
+description = "Anticipation period amplitude modulated by 1,2,3,4,5 (bins)."
 stim_files = ["timings/anticipation_1234_amp.1D"]
 stim_labels = ["SCR"]
 basis = "BLOCK(2,1)"
 glt = []
 
-# --- Model: Amplitude by Heat Level ---
+# --- Model: Square onset amplitude by Heat Level ---
 # Amplitude modulated by heat level.
-[amplitude_by_heat_level]
-description = "Amplitude modulated by heat level."
-stim_files = ["timings/amp_pre_pain.1D", "timings/amp_pain.1D", "timings/amp_square_onset.1D"]
-stim_labels = ["pre_pain", "pain", "square_onset"]
+[square_onset_amplitude_by_heat_level]
+description = "Square onset event, amplitude modulated by heat level."
+stim_files = ["timings/amp_square_onset.1D"]
+stim_labels = ["square_onset"]
 basis = "BLOCK(2,1)" # Default, can be overridden
 glt = []
 
+# --- Model: Pre-pain amplitude by Heat Level ---
+# Amplitude modulated by heat level.
+[pre_pain_amplitude_by_heat_level]
+description = "Pre-pain event (last bin), amplitude modulated by heat level."
+stim_files = ["timings/amp_pre_pain.1D"]
+stim_labels = ["pre_pain"]
+basis = "BLOCK(2,1)" # Default, can be overridden
+glt = []
+
+# --- Model: pain amplitude by Heat Level ---
+# Amplitude modulated by heat level.
+[pain_amplitude_by_heat_level]
+description = "Pain event, amplitude modulated by heat level."
+stim_files = ["timings/amp_pain.1D"]
+stim_labels = ["pain"]
+basis = "BLOCK(4,1)" # Default, can be overridden
+glt = []
