@@ -35,7 +35,7 @@ basis = "BLOCK(4,1)"
 glt = []
 [pain_by_rating.group_analysis]
 regressor = "PAIN#1_Coef"
-label = "PAIN_BY_RATING"
+label = "PAIN"
 
 # --- Model: Pain by SCR ---
 # Pain period amplitude modulated by SCR.
@@ -47,7 +47,7 @@ basis = "BLOCK(4,1)"
 glt = []
 [pain_by_scr.group_analysis]
 regressor = "SCR#1_Coef"
-label = "PAIN_BY_SCR"
+label = "PAIN"
 
 # --- Model: Anticipation by SCR ---
 # Anticipation period amplitude modulated by SCR.
@@ -59,7 +59,7 @@ basis = "BLOCK(2,1)"
 glt = []
 [anticipation_by_scr.group_analysis]
 regressor = "SCR#1_Coef"
-label = "ANTICIPATION_BY_SCR"
+label = "ANTICIPATION"
 
 # --- Model: Anticipation amplitude by bins ---
 # Anticipation period amplitude modulated by 1,2,3,4,5 (bins)
@@ -71,7 +71,7 @@ basis = "BLOCK(2,1)"
 glt = []
 [anticipation_amplitude_by_bins.group_analysis]
 regressor = "SCR#1_Coef"
-label = "ANTICIPATION_BY_BINS"
+label = "ANTICIPATION"
 
 # --- Model: Square onset amplitude by Heat Level ---
 # Amplitude modulated by heat level.

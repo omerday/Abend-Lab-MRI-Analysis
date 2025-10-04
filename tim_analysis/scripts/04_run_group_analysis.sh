@@ -41,6 +41,11 @@ GROUP_ANALYSIS_DIR="${OUTPUT_DIR}/group_analysis/${ANALYSIS_NAME}"
 mkdir -p "$GROUP_ANALYSIS_DIR"
 cd "$GROUP_ANALYSIS_DIR"
 
+if [ ! -f MNI152_2009_template.nii.gz ]; then
+    echo "Copying MNI152_2009_template.nii.gz..."
+    cp ~/MNI152_2009_template.nii.gz .
+fi
+
 IFS=',' read -r -a subject_ids <<< "$SUBJECTS"
 
 echo "Subjects: ${subject_ids[@]}"
@@ -86,7 +91,7 @@ if [ -f "${TTEST_PREFIX}+tlrc.HEAD" ]; then
     echo "T-test output already exists. Deleting existing output."
     rm "${TTEST_PREFIX}+tlrc".*
 fi
-3dttest++ -prefix "$TTEST_PREFIX" \
+3dttest++ -ClustSim -prefix "$TTEST_PREFIX" \
     -setA "${LABEL}" ${DSETS}
 
 echo "Masking results..."
@@ -103,8 +108,7 @@ echo "Generating images with @chauffeur_afni..."
 CHAUFFEUR_DIR="chauffeur_images"
 mkdir -p "$CHAUFFEUR_DIR"
 
-TSTAT_SUB_BRICK="${LABEL}_Tstat" 
-COEF_SUB_BRICK="${LABEL}_Coef"
+ZCSR_SUBBRICK="${LABEL}_Zscr" 
 
 @chauffeur_afni \
     -ulay MNI152_2009_template.nii.gz \
@@ -117,8 +121,7 @@ COEF_SUB_BRICK="${LABEL}_Coef"
     -thr_olay_pside bisided \
     -olay_alpha Yes \
     -olay_boxed Yes \
-    -set_subbricks -1 "${COEF_SUB_BRICK}" "${TSTAT_SUB_BRICK}" \
-    -clusterize "-NN 2 -clust_nvox 40" \
+    -set_subbricks -1 "${ZCSR_SUBBRICK}" "${ZCSR_SUBBRICK}" \
     -set_dicom_xyz -20 -8 -16 \
     -delta_slices 6 15 10 \
     -opacity 5 \
@@ -126,5 +129,27 @@ COEF_SUB_BRICK="${LABEL}_Coef"
     -set_xhairs OFF \
     -montx 3 -monty 3 \
     -label_mode 1 -label_size 4
+
+echo "--- Backing up chauffeur images to Dropbox ---"
+
+DROPBOX_ANALYSIS_DIR=~/Dropbox/group_${ANALYSIS_NAME}_${LABEL}
+CHAUFFEUR_SOURCE_DIR="./chauffeur_images"
+DEST_DIR="${DROPBOX_ANALYSIS_DIR}/chauffeur"
+
+if [ -d ~/Dropbox ]; then
+    mkdir -p "$DROPBOX_ANALYSIS_DIR"
+    if [ -d "$CHAUFFEUR_SOURCE_DIR" ]; then
+        echo "Copying chauffeur images to ${DEST_DIR}"
+        # Clean up old chauffeur images if they exist
+        if [ -d "$DEST_DIR" ]; then
+            rm -rf "$DEST_DIR"
+        fi
+        cp -R "$CHAUFFEUR_SOURCE_DIR" "$DEST_DIR"
+    else
+        echo "WARNING: Chauffeur images directory not found at ${CHAUFFEUR_SOURCE_DIR}. Skipping copy."
+    fi
+else
+    echo "WARNING: Dropbox directory not found at ~/Dropbox. Skipping copy."
+fi
 
 echo "--- Group Analysis for ${ANALYSIS_NAME} Complete ---"
