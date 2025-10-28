@@ -3,6 +3,7 @@ import argparse
 import subprocess
 from collections import defaultdict
 import pandas as pd
+import process_era_files
 
 DCM_CONVERTER_PATH = "dcm2niix"
 
@@ -70,6 +71,10 @@ except:
 
 if not os.path.exists(session):
     os.mkdir(session)
+
+func_path = f"./{session}/func"
+if not os.path.exists(func_path):
+    os.mkdir(func_path)
 
 # Handle FIELDMAP files
 if os.path.exists("./FIELDMAP"):
@@ -237,3 +242,15 @@ for current_file in os.listdir():
         new_file_name = f"{subject}_{session}_task-war_run-{run_number}_events.tsv"
         df.to_csv(f"./{session}/func/{new_file_name}", sep="\t", index=False)
         print(f"Created file {new_file_name}")
+
+if f"{subject}_era_4s.txt" in os.listdir():
+    print("Processing Image ERA file")
+    process_era_files.process_image_era(f"./{subject}_era_4s.txt", events_path=f"./{session}/func", output_path=f"./{session}/func", blocks=2)
+else:
+    print("No Image ERA file to process. Moving on.")
+
+if f"{subject}_era_aggregated.txt" in os.listdir():
+    print("Processing Binned ERA file")
+    process_era_files.process_binned_era(f"./{subject}_era_aggregated.txt", events_path=f"./{session}/func", output_path=f"./{session}/func", blocks=2)
+else:
+    print("No Binned ERA file to process. Moving on.")
