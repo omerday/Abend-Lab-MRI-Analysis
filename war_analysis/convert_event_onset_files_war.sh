@@ -1,5 +1,7 @@
 #!/bin/bash
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 OPTIND=1
 
 # Define the short and long options
@@ -107,6 +109,13 @@ cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk -v lag_val="${lag_blo
 cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk -v lag_val="${lag_block_2}" '{if ($2=="51") {print $1 - lag_val, 22, 1}}' > timings/neutral_block_run2.txt
 cat ${subj}_ses-${session}_task-war_run-2_events.tsv | awk -v lag_val="${lag_block_2}" '{if ($2=="22" || $2=="24") {print $1 - lag_val, $4, 1}}' > timings/rest_run2.txt
 
+if [ -f "binned_scr_run-1.txt" ]; then
+    python ${SCRIPT_DIR}/create_tr_magnitude_file.py --binned_tsv binned_scr_run-1.txt --lag ${lag_block_1} --output timings/scr_binned_run-1.1D
+fi
+if [ -f "binned_scr_run-2.txt" ]; then
+    python ${SCRIPT_DIR}/create_tr_magnitude_file.py --binned_tsv binned_scr_run-2.txt --lag ${lag_block_2} --output timings/scr_binned_run-2.1D
+fi
+
 #Now convert to AFNI format
 cd timings
 timing_tool.py -fsl_timing_files negative_image*.txt -write_timing negative_image.1D
@@ -116,5 +125,7 @@ timing_tool.py -fsl_timing_files negative_block*.txt -write_timing negative_bloc
 timing_tool.py -fsl_timing_files positive_block*.txt -write_timing positive_block.1D
 timing_tool.py -fsl_timing_files neutral_block*.txt -write_timing neutral_block.1D
 timing_tool.py -fsl_timing_files rest*.txt -write_timing rest.1D
+timing_tool.py -fsl_timing_files scr_binned_run-1.1D -write_timing scr_binned_run-1.1D
+timing_tool.py -fsl_timing_files scr_binned_run-2.1D -write_timing scr_binned_run-2.1D
 
 cd ../../..

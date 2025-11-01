@@ -96,7 +96,7 @@ def process_binned_era(era_path: str, events_path="./", output_path="./", blocks
             timings = []
             for time in timing_df[timing_df["Biopac"] == event]["Time"]:
                 for j in range(11):
-                    timings.append(time + j * 2)
+                    timings.append(round(time + j * 2, 2))
             global_means = block_df[block_df["Event.Name"] == event]["Global.Mean"]
             cda_tonic = block_df[block_df["Event.Name"] == event]["CDA.Tonic"]
             amp = np.round(global_means - cda_tonic, 5)
