@@ -33,7 +33,7 @@ ANAT_INPUT_FILE="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/anat/${SUBJECT}_${SES
 ANAT_OUTPUT_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/anat_warped"
 
 # Find the MNI template. Assume it's in the parent directory of the project.
-MNI_TEMPLATE=$(find "${INPUT_DIR}/.." -name "MNI152_2009_template.nii.gz" | head -n 1)
+MNI_TEMPLATE=${INPUT_DIR}/MNI152_2009_template_SSW.nii.gz
 if [ -z "$MNI_TEMPLATE" ]; then
     echo "Error: MNI152_2009_template.nii.gz not found in parent directory of input." >&2
     exit 1
@@ -59,7 +59,7 @@ mkdir -p "$ANAT_OUTPUT_DIR"
 echo "Running SSWarper on ${SUBJECT}"
 sswarper2 \
     -input "$ANAT_INPUT_FILE" \
-    -base "$MNI_TEMPLATE" \
+    -base MNI152_2009_template_SSW.nii.gz \
     -subid "$SUBJECT" \
     -odir "$ANAT_OUTPUT_DIR" \
     -giant_move \
