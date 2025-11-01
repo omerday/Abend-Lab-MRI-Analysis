@@ -114,3 +114,28 @@ afni_proc.py \
 
 echo "--- GLM Analysis for ${SUBJECT} Complete ---"
 
+echo "--- Exporting QC images using @chauffeur_afni ---"
+QC_DIR="QC"
+mkdir -p "$QC_DIR"
+
+for stim in "${STIM_LABELS[@]}"; do
+    @chauffeur_afni                                             \
+        -ulay               "anat_final.${SUBJECT}_${ANALYSIS_NAME}+tlrc.HEAD"      \
+        -ulay_range         0% 130%                             \
+        -olay               "stats.${SUBJECT}_${ANALYSIS_NAME}+tlrc.HEAD"   \
+        -box_focus_slices   AMASK_FOCUS_ULAY                    \
+        -func_range         3                                   \
+        -cbar               Reds_and_Blues_Inv                  \
+        -thr_olay_p2stat    0.05                                \
+        -thr_olay_pside     bisided                             \
+        -olay_alpha         Yes                                 \
+        -olay_boxed         Yes                                 \
+        -set_subbricks      -1 "${stim}#0_Coef" "${stim}#0_Tstat" \
+        -set_dicom_xyz      -20 -8 -16                          \
+        -delta_slices       6 15 10                             \
+        -opacity            5                                   \
+        -prefix             "${QC_DIR}/${stim}"             \
+        -set_xhairs         OFF                                 \
+        -montx 3 -monty 3                                       \
+        -label_mode 1 -label_size 4
+done

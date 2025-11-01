@@ -73,6 +73,9 @@ def process_subject(subject_id, args, main_config, analysis_models):
         steps_to_run = [args.step]
 
     analysis_names = args.analysis
+    if not analysis_names and args.step in ["glm", "all"]:
+        analysis_names = list(analysis_models.keys())
+
     if analysis_names and args.step in ["glm", "all"]:
         for analysis_name in analysis_names:
             if analysis_name not in analysis_models:
@@ -131,7 +134,7 @@ def main():
     """Main function to run the analysis pipeline."""
     parser = argparse.ArgumentParser(description="fMRI Analysis Pipeline Runner for WAR task")
     parser.add_argument("--subject", help="Specify a single subject ID to process (e.g., sub-AL01). Overrides subject lists in configs.")
-    parser.add_argument("--analysis", nargs='+', help="Specify one or more analysis models to run for the 'glm' or 'all' step.")
+    parser.add_argument("--analysis", nargs='*', help="Specify one or more analysis models to run for the 'glm' or 'all' step.")
     parser.add_argument("--step", choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all"], required=True, help="The processing step to execute.")
     parser.add_argument("--session", default="1", help="Specify the session number (e.g., 1).")
     parser.add_argument("--n_procs", type=int, default=1, help="Number of subjects to process in parallel.")
