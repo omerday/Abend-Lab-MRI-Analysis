@@ -28,3 +28,43 @@ stim_labels = ["SCR"]
 basis = "GAM"
 stim_types = "file" # Special case for afni_proc.py
 glt = []
+
+# --- Group Analyses for by_block model ---
+
+[[by_block.group_analyses]]
+name = "mdma_vs_control_s1"
+type = "3dLMEr"
+model = "group*stimulus+(1|Subj)"
+description = "Compare MDMA vs Control groups in session 1 for each stimulus."
+groups = ["MDMA", "Control"]
+sessions = [1]
+contrasts = ["neg_blck#0_Coef", "pos_blck#0_Coef", "neut_blck#0_Coef"]
+stimulus_labels = ["neg", "pos", "neut"]
+glt = [
+    { sym = "group : 1*MDMA -1*Control stimulus : 1*neg", label = "neg_mdma_gt_control" },
+    { sym = "group : 1*MDMA -1*Control stimulus : 1*pos", label = "pos_mdma_gt_control" },
+    { sym = "group : 1*MDMA -1*Control stimulus : 1*neut", label = "neut_mdma_gt_control" }
+]
+
+[[by_block.group_analyses]]
+name = "mdma_session_comparison"
+type = "3dLMEr"
+model = "session*stimulus+(1|Subj)"
+description = "Compare session 2 vs session 1 for the MDMA group."
+groups = ["MDMA"]
+sessions = [1, 2]
+contrasts = ["neg_blck#0_Coef", "pos_blck#0_Coef", "neut_blck#0_Coef"]
+stimulus_labels = ["neg", "pos", "neut"]
+glt = [
+    { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*neg", label = "neg_s2_gt_s1" },
+    { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*pos", label = "pos_s2_gt_s1" }
+]
+
+[[by_block.group_analyses]]
+name = "mdma_s1_neg_vs_neut"
+type = "3dttest++"
+description = "One-sample t-test for the MDMA group in session 1 on the neg-neut contrast."
+groups = ["MDMA"]
+sessions = [1]
+contrast = "neg-neut_blck#0_Coef"
+setA_label = "MDMA_S1_NegVsNeut"

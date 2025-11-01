@@ -130,14 +130,161 @@ def process_subject(subject_id, args, main_config, analysis_models):
                 print(f"Stopping pipeline for {subject_id} because step '{step}' failed.")
                 break
 
+def run_group_analysis(args, config, analysis_models):
+    """Runs a specified group-level analysis."""
+    if not args.analysis or len(args.analysis) > 1:
+        print("Error: Please specify exactly one first-level analysis model using --analysis.")
+        return
+    analysis_name = args.analysis[0]
+
+    if not args.group_model:
+        print("Error: Please specify a group analysis model using --group_model.")
+        return
+
+    # Find the first-level analysis model
+    f_level_model = analysis_models.get(analysis_name)
+    if not f_level_model:
+        print(f"Error: First-level analysis '{analysis_name}' not found.")
+        return
+
+    # Find the group analysis model within the first-level model
+    group_model_config = next((g for g in f_level_model.get("group_analyses", []) if g["name"] == args.group_model), None)
+    if not group_model_config:
+        print(f"Error: Group analysis model '{args.group_model}' not found under '{analysis_name}'.")
+        return
+
+    print(f"--- Starting Group Analysis: {analysis_name} / {args.group_model} ---")
+
+    output_dir = os.path.join(config["output_dir"], "group_analysis", analysis_name, args.group_model)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # --- Subject and Mask Generation ---
+    all_subjects_info = config.get("subjects", [])
+    group_model_subjects = group_model_config.get("groups")
+    
+    subjects_to_process = [s for s in all_subjects_info if s["group"] in group_model_subjects]
+    
+    mask_files = []
+    for sub_info in subjects_to_process:
+        for ses_id in group_model_config.get("sessions", []):
+            mask_path = os.path.join(config["output_dir"], sub_info["id"], f"ses-{ses_id}", "func_preproc", f"{sub_info['id']}_preproc.results", f"mask_epi_anat.{sub_info['id']}_preproc+tlrc.HEAD")
+            if os.path.exists(mask_path):
+                mask_files.append(mask_path.replace(".HEAD", ""))
+            else:
+                print(f"Warning: Mask file not found, skipping: {mask_path}")
+    
+    if not mask_files:
+        print("Error: No mask files found for any subjects. Aborting.")
+        return
+
+    group_mask_path = os.path.join(output_dir, "group_mask")
+    subprocess.run([
+        "3dmask_tool",
+        "-input"] + mask_files + [
+        "-prefix", group_mask_path,
+        "-frac", "0.5"
+    ], check=True)
+
+    # --- Analysis-specific logic ---
+    analysis_type = group_model_config["type"]
+    script_path = os.path.join("scripts", "04_run_group_analysis.sh")
+    
+    command = [
+        "bash", script_path,
+        "--type", analysis_type,
+        "--output_prefix", os.path.join(output_dir, f"result_{args.group_model}"),
+        "--mask", f"{group_mask_path}+tlrc",
+    ]
+
+    if analysis_type == "3dLMEr":
+        # Generate data table
+        data_table_path = os.path.join(output_dir, "data_table.txt")
+        model_factors = group_model_config["model"].split("*")
+        header = "Sub" + "\t".join(f.split("(")[0] for f in model_factors if "+" not in f) + "\tInputFile\n"
+        
+        with open(data_table_path, "w") as f:
+            f.write(header)
+            for sub_info in subjects_to_process:
+                for ses_id in group_model_config.get("sessions", []):
+                    for i, contrast in enumerate(group_model_config["contrasts"]):
+                        stats_file = os.path.join(
+                            config["output_dir"], sub_info["id"], f"ses-{ses_id}", "glm", analysis_name,
+                            f"{sub_info['id']}_{analysis_name}.results",
+                            f"stats.{sub_info['id']}_{analysis_name}+tlrc[{contrast}]"
+                        )
+                        if not os.path.exists(stats_file.split("[")[0] + ".HEAD"):
+                            print(f"Warning: Stats file not found, skipping: {stats_file}")
+                            continue
+                        
+                        line = f"{sub_info['id']}\t"
+                        if "session" in header:
+                            line += f"ses-{ses_id}\t"
+                        if "group" in header:
+                            line += f"{sub_info['group']}\t"
+                        line += f"{group_model_config['stimulus_labels'][i]}\t"
+                        line += f"{stats_file}\n"
+                        f.write(line)
+        
+        # Format GLT codes
+        glt_codes = " ".join([f"-gltCode {g['label']} \'{g['sym']}\'" for g in group_model_config["glt"]])
+
+        command.extend([
+            "--data_table", data_table_path,
+            "--model", group_model_config["model"],
+            "--glt_codes", glt_codes
+        ])
+
+    elif analysis_type == "3dttest++":
+        setA_label = group_model_config.get("setA_label")
+        contrast_name = group_model_config.get("contrast")
+        if not setA_label or not contrast_name:
+            print("Error: 3dttest++ requires 'setA_label' and 'contrast' in config.")
+            return
+
+        setA_files = []
+        for sub_info in subjects_to_process:
+            for ses_id in group_model_config.get("sessions", []):
+                stats_file = os.path.join(
+                    config["output_dir"], sub_info["id"], f"ses-{ses_id}", "glm", analysis_name,
+                    f"{sub_info['id']}_{analysis_name}.results",
+                    f"stats.{sub_info['id']}_{analysis_name}+tlrc[{contrast_name}]"
+                )
+                if not os.path.exists(stats_file.split("[")[0] + ".HEAD"):
+                    print(f"Warning: Stats file not found, skipping: {stats_file}")
+                    continue
+                
+                setA_files.append(sub_info['id'])
+                setA_files.append(f"{stats_file}")
+
+        command.extend([
+            "--setA_label", setA_label,
+            "--setA_files", " ".join(setA_files)
+        ])
+
+    # --- Execute ---
+    log_file_path = os.path.join("logs", f"group_analysis_{analysis_name}_{args.group_model}.log")
+    print(f"Executing group analysis. Check log for details: {log_file_path}")
+    
+    with open(log_file_path, "w") as log_file:
+        process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT, cwd=output_dir)
+        process.wait()
+
+    if process.returncode == 0:
+        print(f"Successfully completed group analysis. Results in: {output_dir}")
+    else:
+        print(f"Error running group analysis. Check log: {log_file_path}")
+
+
 def main():
     """Main function to run the analysis pipeline."""
     parser = argparse.ArgumentParser(description="fMRI Analysis Pipeline Runner for WAR task")
     parser.add_argument("--subject", help="Specify a single subject ID to process (e.g., sub-AL01). Overrides subject lists in configs.")
-    parser.add_argument("--analysis", nargs='*', help="Specify one or more analysis models to run for the 'glm' or 'all' step.")
-    parser.add_argument("--step", choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all"], required=True, help="The processing step to execute.")
+    parser.add_argument("--analysis", nargs='*', help="Specify one or more analysis models to run for 'glm', 'all', or 'group_analysis' step.")
+    parser.add_argument("--step", choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all", "group_analysis"], required=True, help="The processing step to execute.")
     parser.add_argument("--session", default="1", help="Specify the session number (e.g., 1).")
     parser.add_argument("--n_procs", type=int, default=1, help="Number of subjects to process in parallel.")
+    parser.add_argument("--group_model", help="Specify the group analysis model name to run (required for 'group_analysis' step).")
+
 
     args = parser.parse_args()
 
@@ -146,6 +293,10 @@ def main():
         analysis_models = toml.load("analysis_configs/analysis_models.toml")
     except FileNotFoundError as e:
         print(f"Error: Configuration file not found. {e}")
+        return
+
+    if args.step == "group_analysis":
+        run_group_analysis(args, main_config, analysis_models)
         return
 
     subjects_to_process_ids = []

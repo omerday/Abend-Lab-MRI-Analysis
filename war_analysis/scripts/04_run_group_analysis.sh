@@ -1,55 +1,92 @@
 #!/bin/bash
 
 # --- Script: 04_run_group_analysis.sh ---
-# Description: Runs group-level analysis (3dttest++ or 3dLMEr).
-# This is a template and will be expanded based on the specific group analysis model.
+# Description: Runs a group-level analysis (3dttest++ or 3dLMEr).
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
 # Default values
-ANALYSIS_NAME=""
-INPUT_DIR=""
-OUTPUT_DIR=""
-SUBJECTS=""
-SESSION="1"
+ANALYSIS_TYPE=""
+OUTPUT_PREFIX=""
+MASK=""
+DATA_TABLE_FILE=""
+MODEL=""
+GLT_CODES=""
+SET_A_LABEL=""
+SET_A_FILES=""
 
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
-        --analysis) ANALYSIS_NAME="$2"; shift 2;;
-        --input) INPUT_DIR="$2"; shift 2;;
-        --output) OUTPUT_DIR="$2"; shift 2;;
-        --subjects) SUBJECTS="$2"; shift 2;;
-        --session) SESSION="$2"; shift 2;;
-        *) echo "Unknown option: $1"; exit 1;;
+        --type) ANALYSIS_TYPE="$2"; shift 2;; 
+        --output_prefix) OUTPUT_PREFIX="$2"; shift 2;; 
+        --mask) MASK="$2"; shift 2;; 
+        --data_table) DATA_TABLE_FILE="$2"; shift 2;; 
+        --model) MODEL="$2"; shift 2;; 
+        --glt_codes) GLT_CODES="$2"; shift 2;; 
+        --setA_label) SET_A_LABEL="$2"; shift 2;; 
+        --setA_files) SET_A_FILES="$2"; shift 2;; 
+        *) echo "Unknown option: $1"; exit 1;; 
     esac
 done
 
 # Validate required arguments
-if [ -z "$ANALYSIS_NAME" ] || [ -z "$INPUT_DIR" ] || [ -z "$OUTPUT_DIR" ] || [ -z "$SUBJECTS" ] || [ -z "$SESSION" ]; then
-    echo "Usage: $0 --analysis <name> --input <dir> --output <dir> --subjects <sub1,sub2,...> --session <N>" >&2
+if [ -z "$ANALYSIS_TYPE" ] || [ -z "$OUTPUT_PREFIX" ] || [ -z "$MASK" ]; then
+    echo "Usage: $0 --type <type> --output_prefix <prefix> --mask <file> [options]"
     exit 1
 fi
 
-echo "--- Starting Group Analysis for ${ANALYSIS_NAME} ---"
+# Find the MNI template. Assume it's in the parent directory of the project.
+MNI_TEMPLATE=$(find .. -name "MNI152_2009_template.nii.gz" | head -n 1)
+if [ -z "$MNI_TEMPLATE" ]; then
+    echo "Error: MNI152_2009_template.nii.gz not found." >&2
+    exit 1
+fi
 
-GROUP_ANALYSIS_DIR="${OUTPUT_DIR}/group_analysis/${ANALYSIS_NAME}"
-mkdir -p "$GROUP_ANALYSIS_DIR"
-cd "$GROUP_ANALYSIS_DIR"
+echo "--- Starting Group Analysis: ${OUTPUT_PREFIX} ---"
+echo "Analysis Type: ${ANALYSIS_TYPE}"
 
-# This script is a placeholder. The actual implementation will depend on the
-# specific group analysis model (e.g., 3dttest++, 3dLMEr) and will be
-# orchestrated by the run_group_level.py controller, which will pass
-# the appropriate commands and data tables.
+# Run analysis based on type
+if [ "$ANALYSIS_TYPE" == "3dLMEr" ]; then
+    if [ -z "$DATA_TABLE_FILE" ] || [ -z "$MODEL" ]; then
+        echo "Error: --data_table and --model are required for 3dLMEr."
+        exit 1
+    fi
+    
+    echo "Model: ${MODEL}"
+    echo "Data Table: ${DATA_TABLE_FILE}"
 
-echo "Group analysis script is a placeholder. Implementation will be model-specific."
+    3dLMEr -prefix "$OUTPUT_PREFIX" \
+        -mask "$MASK" \
+        -SS_type 3 \
+        -model "$MODEL" \
+        ${GLT_CODES} \
+        -dataTable -`cat "$DATA_TABLE_FILE"`
 
-# Example of creating a group mask (common step)
-# IFS=',' read -r -a subject_ids <<< "$SUBJECTS"
-# MASK_FILES=""
-# for subject in "${subject_ids[@]}"; do
-#     MASK_FILES+=" ${INPUT_DIR}/${subject}/ses-${SESSION}/func_preproc/${subject}_preproc.results/mask_epi_anat.${subject}_preproc+tlrc"
-# done
-# 3dmask_tool -input ${MASK_FILES} -prefix group_mask -frac 0.5
+elif [ "$ANALYSIS_TYPE" == "3dttest++" ]; then
+    if [ -z "$SET_A_LABEL" ] || [ -z "$SET_A_FILES" ]; then
+        echo "Error: --setA_label and --setA_files are required for 3dttest++."
+        exit 1
+    fi
 
-echo "--- Group Analysis for ${ANALYSIS_NAME} Complete ---"
+    3dttest++ -prefix "$OUTPUT_PREFIX" \
+        -mask "$MASK" \
+        -setA "$SET_A_LABEL" ${SET_A_FILES}
+
+else
+    echo "Error: Unknown analysis type '${ANALYSIS_TYPE}'"
+    exit 1
+fi
+
+echo "--- Group Analysis Complete. Output: ${OUTPUT_PREFIX}+tlrc ---"
+
+echo "--- Generating report images with @chauffeur_afni ---"
+CHAUFFEUR_DIR="chauffeur_images"
+mkdir -p "$CHAUFFEUR_DIR"
+
+# This part is a placeholder for generating specific images.
+# The controller script will need to call this for each contrast of interest.
+# For now, we just confirm the script ran.
+echo "Chauffeur image generation would run here."
+
+echo "--- Script Finished ---"

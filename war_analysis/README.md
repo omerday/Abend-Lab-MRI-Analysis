@@ -240,32 +240,66 @@ The `run_analysis.py` script manages all first-level processing steps for indivi
     python run_analysis.py --subject sub-AL01 --session 2 --step all --analysis by_block
     ```
 
-### Group-Level Analysis (`run_group_level.py`)
+### Group-Level Analysis (`run_analysis.py`)
 
-*(Note: `run_group_level.py` is currently a placeholder and its full implementation is pending. The `04_run_group_analysis.sh` script is a generic template.)*
+Group-level analyses are integrated into the main `run_analysis.py` script via the `group_analysis` step. This allows for configurable and reproducible group comparisons using the results from the first-level GLMs.
 
-The `run_group_level.py` script will manage group-level analyses (e.g., `3dttest++`, `3dLMEr`). It will collect first-level results from multiple subjects and perform statistical comparisons at the group level.
+**Key Features:**
 
-**Example Configuration for Group Analysis (within `analysis_models.toml`):**
+-   **Configurable Models**: Define complex group analyses directly in `analysis_models.toml`.
+-   **Multiple Analysis Types**: Supports both one-sample t-tests (`3dttest++`) and linear mixed-effects modeling (`3dLMEr`).
+-   **Automatic Data Handling**: The script automatically finds subjects, filters them by group, collects the correct first-level statistical files, and generates the data tables required by `3dLMEr`.
 
-You can define group-level parameters within an analysis model or in a separate section.
+**Configuration for Group Analysis (in `analysis_configs/analysis_models.toml`):**
 
-```toml
-[by_block.group_analysis]
-regressor = "neg_blck#0_Coef" # The specific sub-brick from the first-level stats to use.
-label = "Negative_Block_Effect" # A descriptive label for the group analysis.
-type = "3dttest++" # Type of group analysis tool to use.
-# Additional parameters specific to 3dttest++ or 3dLMEr can be added here.
-```
+Within a first-level model (e.g., `[by_block]`), you can define a list of group analyses using the `[[by_block.group_analyses]]` table format.
 
-**Example Usage for `run_group_level.py` (future implementation):**
+*   **`3dLMEr` Example (Between-Groups):**
+
+    ```toml
+    [[by_block.group_analyses]]
+    name = "mdma_vs_control_s1" # A unique name for this group model
+    type = "3dLMEr"
+    model = "group*stimulus+(1|Subj)" # The statistical model for 3dLMEr
+    description = "Compare MDMA vs Control groups in session 1."
+    groups = ["MDMA", "Control"] # Subject groups from main_config.toml
+    sessions = [1] # Which session(s) to include
+    contrasts = ["neg_blck#0_Coef", "pos_blck#0_Coef", "neut_blck#0_Coef"] # Sub-bricks from 1st-level
+    stimulus_labels = ["neg", "pos", "neut"] # Labels for the 'stimulus' factor in the LME model
+    glt = [ # General linear tests for the group model
+        { sym = "group : 1*MDMA -1*Control stimulus : 1*neg", label = "neg_mdma_gt_control" }
+    ]
+    ```
+
+*   **`3dttest++` Example (One-Sample T-Test):**
+
+    ```toml
+    [[by_block.group_analyses]]
+    name = "mdma_s1_neg_vs_neut"
+    type = "3dttest++"
+    description = "One-sample t-test for the MDMA group in session 1 on the neg-neut contrast."
+    groups = ["MDMA"]
+    sessions = [1]
+    contrast = "neg-neut_blck#0_Coef" # The specific sub-brick from the first-level GLT to test.
+    setA_label = "MDMA_S1_NegVsNeut" # Label for the output dataset.
+    ```
+
+**Example Usage for Group Analysis:**
+
+To run a group analysis, you must specify the `group_analysis` step, the parent first-level analysis, and the name of the group model to run.
 
 ```bash
-python run_group_level.py \
+# Run the 3dLMEr model comparing MDMA and Control groups
+python run_analysis.py \
+    --step group_analysis \
     --analysis by_block \
-    --group_label Negative_Block_Effect \
-    --subjects sub-AL01,sub-AL02,sub-AL03 \
-    --session 1
+    --group_model mdma_vs_control_s1
+
+# Run the 3dttest++ model for the MDMA group
+python run_analysis.py \
+    --step group_analysis \
+    --analysis by_block \
+    --group_model mdma_s1_neg_vs_neut
 ```
 
 ---
@@ -278,22 +312,24 @@ The pipeline generates a structured output directory within the `output_dir` spe
 /your_output_dir/
 ├── sub-AL01/
 │   ├── ses-1/
-│   │   ├── anat_warped/      # Output from 01_preprocess_anat.sh (SSWarper)
-│   │   │   └── anatSS.sub-AL01.nii, anatU.sub-AL01.nii, etc.
-│   │   ├── func_preproc/     # Output from 02_preprocess_func.sh (afni_proc.py preprocessing)
-│   │   │   └── sub-AL01_preproc.results/ # Contains preprocessed BOLD data (pb04.*.scale+tlrc.HEAD), motion files, censor files, etc.
+│   │   ├── anat_warped/      # Output from 01_preprocess_anat.sh
+│   │   ├── func_preproc/     # Output from 02_preprocess_func.sh
 │   │   └── glm/
 │   │       ├── by_block/     # Output from 03_run_glm.sh for 'by_block' model
-│   │       │   └── sub-AL01_by_block.results/ # Contains stats.sub-AL01_by_block+tlrc, masked_stats, chauffeur_images/
 │   │       └── by_scr_bins/  # Output from 03_run_glm.sh for 'by_scr_bins' model
-│   │           └── sub-AL01_by_scr_bins.results/ # Contains stats.sub-AL01_by_scr_bins+tlrc, etc.
 │   └── ses-2/
-│       └── ... (similar structure for other sessions)
+│       └── ...
 ├── sub-AL02/
 │   └── ...
 └── group_analysis/
-    ├── by_block/             # Output from 04_run_group_analysis.sh for 'by_block' model
-    │   └── Negative_Block_Effect/ # Specific group analysis results (e.g., 3dttest_Negative_Block_Effect+tlrc)
+    ├── by_block/             # Parent analysis for the group models
+    │   ├── mdma_vs_control_s1/ # Results for this group model
+    │   │   ├── result_mdma_vs_control_s1+tlrc.HEAD
+    │   │   ├── result_mdma_vs_control_s1+tlrc.BRIK
+    │   │   ├── group_mask+tlrc.HEAD
+    │   │   └── data_table.txt
+    │   └── mdma_s1_neg_vs_neut/
+    │       └── ...
     └── ...
 ```
 
