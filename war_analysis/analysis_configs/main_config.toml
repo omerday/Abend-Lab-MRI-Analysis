@@ -1,0 +1,43 @@
+# Main configuration for the fMRI analysis pipeline
+
+# --- Paths ---
+# Absolute path to the directory containing the raw BIDS data.
+input_dir = "/home/user/Documents/MDMA/Input"
+
+# Absolute path to the directory where all outputs (derivatives) will be saved.
+output_dir = "/media/user/PortableSSD/MDMA/Output"
+
+# --- Subjects ---
+# List of subjects to be processed.
+# Each subject can have multiple sessions, each with its own specific parameters.
+
+[[subjects]]
+id = "sub-AL01"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 10, lag_block_2 = 12 },
+  { id = 2, lag_block_1 = 9,  lag_block_2 = 11 }
+]
+
+[[subjects]]
+id = "sub-AL02"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 8, lag_block_2 = 8 }
+]
+
+[[subjects]]
+id = "sub-AL03"
+group = "MDMA"
+sessions = [
+  { id = 1 } # No lag specified for this session, will default to 0.
+]
+
+ # Example subjects
+
+# --- AFNI Parameters ---
+# Default parameters used across most analyses.
+blur_size = 4.0
+tr = 2.0
+censor_motion_threshold = 0.5
+censor_outlier_threshold = 0.05
