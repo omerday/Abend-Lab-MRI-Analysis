@@ -125,6 +125,8 @@ timing_tool.py -fsl_timing_files negative_block*.txt -write_timing negative_bloc
 timing_tool.py -fsl_timing_files positive_block*.txt -write_timing positive_block.1D
 timing_tool.py -fsl_timing_files neutral_block*.txt -write_timing neutral_block.1D
 timing_tool.py -fsl_timing_files rest*.txt -write_timing rest.1D
-timing_tool.py -fsl_timing_files scr_binned*.1D -write_timing scr_binned.1D
+
+cat scr_binned_run-1.1D > scr_binned.1D
+cat scr_binned_run-2.1D >> scr_binned.1D
 
 cd ../../..
