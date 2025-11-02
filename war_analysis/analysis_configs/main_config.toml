@@ -12,28 +12,11 @@ output_dir = "/media/user/PortableSSD/MDMA/Output"
 # Each subject can have multiple sessions, each with its own specific parameters.
 
 [[subjects]]
-id = "sub-AL01"
+id = "sub-MD18"
 group = "MDMA"
 sessions = [
-  { id = 1, lag_block_1 = 10, lag_block_2 = 12 },
-  { id = 2, lag_block_1 = 9,  lag_block_2 = 11 }
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28 }
 ]
-
-[[subjects]]
-id = "sub-AL02"
-group = "Control"
-sessions = [
-  { id = 1, lag_block_1 = 8, lag_block_2 = 8 }
-]
-
-[[subjects]]
-id = "sub-AL03"
-group = "MDMA"
-sessions = [
-  { id = 1 } # No lag specified for this session, will default to 0.
-]
-
- # Example subjects
 
 # --- AFNI Parameters ---
 # Default parameters used across most analyses.
