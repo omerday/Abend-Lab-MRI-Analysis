@@ -40,20 +40,21 @@ CONFIG_FILE="analysis_configs/analysis_models.toml"
 # This uses a simple awk parser. For complex configs, a proper tool might be better.
 MODEL_CONFIG=$(awk -v model="$ANALYSIS_NAME" '/^\[/{in_model=0} $0=="["model"]"{in_model=1} in_model' "$CONFIG_FILE")
 
-STIM_FILES_RAW=$(echo "$MODEL_CONFIG" | grep 'stim_files' | sed 's/stim_files = \[\(.*\)\]/\1/' | tr -d '"' | tr -d ' ')
-STIM_LABELS_RAW=$(echo "$MODEL_CONFIG" | grep 'stim_labels' | sed 's/stim_labels = \[\(.*\)\]/\1/' | tr -d '"' | tr -d ' ')
+STIM_FILES_RAW=$(echo "$MODEL_CONFIG" | awk '/stim_files = \[/{f=1;next} /]/{f=0} f' | tr -d ',"' | tr -d ' ' | paste -sd, -)
+STIM_LABELS_RAW=$(echo "$MODEL_CONFIG" | grep 'stim_labels' | sed 's/stim_labels = \[\(.*\)\]/\1/' | tr -d '"' | sed 's/ //g')
 BASIS=$(echo "$MODEL_CONFIG" | grep 'basis' | sed 's/basis = "\(.*\)"/\1/')
 STIM_TYPES=$(echo "$MODEL_CONFIG" | grep 'stim_types' | sed 's/stim_types = "\(.*\)"/\1/')
 
 IFS=',' read -r -a STIM_FILES <<< "$STIM_FILES_RAW"
 IFS=',' read -r -a STIM_LABELS <<< "$STIM_LABELS_RAW"
 
-REGRESS_STIM_TIMES_ARGS=""
+STIM_PATHS=()
 for file in "${STIM_FILES[@]}"; do
-    REGRESS_STIM_TIMES_ARGS+="-regress_stim_times ${TIMING_DIR}/${file} "
+    STIM_PATHS+=("${TIMING_DIR}/${file}")
 done
+REGRESS_STIM_TIMES_ARGS=("-regress_stim_times" "${STIM_PATHS[@]}")
 
-REGRESS_STIM_LABELS_ARGS="-regress_stim_labels ${STIM_LABELS[*]}"
+REGRESS_STIM_LABELS_ARGS=("-regress_stim_labels" "${STIM_LABELS[@]}")
 
 # Construct GLT arguments
 GLT_ARGS=""
@@ -81,19 +82,20 @@ fi
 mkdir -p "$GLM_OUTPUT_DIR"
 cd "$GLM_OUTPUT_DIR"
 
-# Set default stim types if not specified
-if [ -z "$STIM_TYPES" ]; then
-    STIM_TYPES="AM1"
+# Conditionally add stim types
+STIM_TYPES_ARG=""
+if [ -n "$STIM_TYPES" ]; then
+    STIM_TYPES_ARG="-regress_stim_types $STIM_TYPES"
 fi
 
 # Run afni_proc.py for the GLM
 afni_proc.py \
     -subj_id "${SUBJECT}_${ANALYSIS_NAME}" \
-    -dsets "${PREPROC_DIR}/pb04.${SUBJECT}_preproc.r*.scale+tlrc.HEAD" \
+    -dsets ${PREPROC_DIR}/pb05.${SUBJECT}_preproc.r*.scale+tlrc.HEAD \
     -blocks regress \
-    ${REGRESS_STIM_TIMES_ARGS} \
-    ${REGRESS_STIM_LABELS_ARGS} \
-    -regress_stim_types "$STIM_TYPES" \
+    "${REGRESS_STIM_TIMES_ARGS[@]}" \
+    "${REGRESS_STIM_LABELS_ARGS[@]}" \
+    ${STIM_TYPES_ARG} \
     -regress_basis "$BASIS" \
     ${GLT_ARGS} \
     -regress_opts_3dD -jobs 8 \
@@ -111,3 +113,4 @@ afni_proc.py \
     -execute
 
 echo "--- GLM Analysis for ${SUBJECT} Complete ---"
+

@@ -65,7 +65,7 @@ afni_proc.py \
     -copy_anat "${ANAT_WARPED_DIR}/anatSS.${SUBJECT}.nii" \
     -anat_has_skull no \
     -anat_follower anat_w_skull anat "${ANAT_WARPED_DIR}/anatU.${SUBJECT}.nii" \
-    -blocks tshift align tlrc volreg mask combine blur scale \
+    -blocks tshift align tlrc volreg mask combine blur scale regress \
     -html_review_style pythonic \
     -align_unifize_epi local \
     -align_opts_aea -cost lpc+ZZ -giant_move -check_flip \
@@ -83,6 +83,9 @@ afni_proc.py \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.nii" \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.aff12.1D" \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}_WARP.nii" \
+    -regress_motion_per_run \
+    -regress_censor_motion 0.5 \
+    -regress_censor_outliers 0.05 \
     -execute
 
 echo "--- Functional Preprocessing for ${SUBJECT} Complete ---"
