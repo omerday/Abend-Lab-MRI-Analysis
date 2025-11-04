@@ -37,6 +37,8 @@ SESSION_PREFIX="ses-${SESSION}"
 FUNC_DIR="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func"
 
 echo "--- Starting Onset Conversion for ${SUBJECT}, ${SESSION_PREFIX} ---"
+echo "--- Lag Block 1: ${LAG_BLOCK_1} seconds ---"
+echo "--- Lag Block 2: ${LAG_BLOCK_2} seconds ---"
 
 if [ ! -d "$FUNC_DIR" ]; then
     echo "Error: Func directory not found at ${FUNC_DIR}" >&2

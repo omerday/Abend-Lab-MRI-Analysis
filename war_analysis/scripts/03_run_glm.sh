@@ -43,7 +43,7 @@ MODEL_CONFIG=$(awk -v model="$ANALYSIS_NAME" '/^\[/{in_model=0} $0=="["model"]"{
 STIM_FILES_RAW=$(echo "$MODEL_CONFIG" | awk '/stim_files = \[/{f=1;next} /]/{f=0} f' | tr -d ',"' | tr -d ' ' | paste -sd, -)
 STIM_LABELS_RAW=$(echo "$MODEL_CONFIG" | grep 'stim_labels' | sed 's/stim_labels = \[\(.*\)\]/\1/' | tr -d '"' | sed 's/ //g')
 BASIS=$(echo "$MODEL_CONFIG" | grep 'basis' | sed 's/basis = "\(.*\)"/\1/')
-STIM_TYPES=$(echo "$MODEL_CONFIG" | grep 'stim_types' | sed 's/stim_types = "\(.*\)"/\1/')
+STIM_TYPES=$(echo "$MODEL_CONFIG" | grep 'stim_types' | sed 's/stim_types = "\(.*\)".*/\1/')
 
 IFS=',' read -r -a STIM_FILES <<< "$STIM_FILES_RAW"
 IFS=',' read -r -a STIM_LABELS <<< "$STIM_LABELS_RAW"
@@ -109,7 +109,6 @@ afni_proc.py \
     -regress_make_ideal_sum sum_ideal.1D \
     -regress_run_clustsim no \
     -remove_preproc_files \
-    -html_review_style pythonic \
     -execute
 
 echo "--- GLM Analysis for ${SUBJECT} Complete ---"
@@ -120,9 +119,9 @@ mkdir -p "$QC_DIR"
 
 for stim in "${STIM_LABELS[@]}"; do
     @chauffeur_afni                                             \
-        -ulay               "anat_final.${SUBJECT}_${ANALYSIS_NAME}+tlrc.HEAD"      \
+        -ulay               "../../func_preproc/${SUBJECT}_preproc.results/anat_final.${SUBJECT}_preproc+tlrc.HEAD"      \
         -ulay_range         0% 130%                             \
-        -olay               "stats.${SUBJECT}_${ANALYSIS_NAME}+tlrc.HEAD"   \
+        -olay               "${SUBJECT}_${ANALYSIS_NAME}.results/stats.${SUBJECT}_${ANALYSIS_NAME}+tlrc.HEAD"   \
         -box_focus_slices   AMASK_FOCUS_ULAY                    \
         -func_range         3                                   \
         -cbar               Reds_and_Blues_Inv                  \

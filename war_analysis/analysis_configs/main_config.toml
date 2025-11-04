@@ -15,7 +15,7 @@ output_dir = "/media/user/PortableSSD/MDMA/Output"
 id = "sub-MD18"
 group = "MDMA"
 sessions = [
-  { id = 1, lag_block_1 = 28, lag_block_2 = 28 }
+  { id = 2, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
 ]
 
 # --- AFNI Parameters ---

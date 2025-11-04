@@ -12,6 +12,7 @@ stim_files = [
 ]
 stim_labels = ["neg_blck", "pos_blck", "neut_blck", "rest"]
 basis = "BLOCK(22,1)"
+requires_scr = false
 glt = [
     { sym = "neg_blck - neut_blck", label = "neg-neut_blck" },
     { sym = "neg_blck - rest", label = "neg_blck-rest" },
@@ -23,10 +24,13 @@ glt = [
 # Replicates the analysis from first_level_analysis_by_scr_bins.sh
 [by_scr_bins]
 description = "GLM analysis using binned SCR as a regressor."
-stim_files = ["timings/scr_binned.1D"]
+stim_files = [
+    "timings/scr_binned.1D"
+]
 stim_labels = ["SCR"]
 basis = "GAM"
 stim_types = "file" # Special case for afni_proc.py
+requires_scr = true
 glt = []
 
 # --- Group Analyses for by_block model ---

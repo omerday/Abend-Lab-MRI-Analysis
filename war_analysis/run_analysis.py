@@ -62,73 +62,101 @@ def run_step(subject, session, config, analysis_name, step_name, extra_args=None
 
 def process_subject(subject_id, args, main_config, analysis_models):
     """Runs the requested pipeline steps for a single subject."""
-    print(f"--- Starting Pipeline for Subject: {subject_id}, Session: {args.session} ---")
-
-    steps_to_run = []
-    if args.step == 'all':
-        steps_to_run = ["create_timings", "preprocess_anat", "preprocess_func", "glm"]
-    elif args.step == 'preprocess':
-        steps_to_run = ["create_timings", "preprocess_anat", "preprocess_func"]
-    else:
-        steps_to_run = [args.step]
-
-    analysis_names = args.analysis
-    if not analysis_names and args.step in ["glm", "all"]:
-        analysis_names = list(analysis_models.keys())
-
-    if analysis_names and args.step in ["glm", "all"]:
-        for analysis_name in analysis_names:
-            if analysis_name not in analysis_models:
-                print(f"Warning for {subject_id}: Analysis model '{analysis_name}' not found in analysis_models.toml.")
-
     # Find subject-specific config
-    subject_config = next((s for s in main_config.get("subjects", []) if s.get("id") == subject_id), {})
-    # Find session-specific config within the subject's config
-    session_id_to_find = int(args.session)
-    session_config = next((ses for ses in subject_config.get("sessions", []) if ses.get("id") == session_id_to_find), {})
+    subject_config = next((s for s in main_config.get("subjects", []) if s.get("id") == subject_id), None)
+    if not subject_config:
+        print(f"Warning for {subject_id}: Subject configuration not found in main_config.toml. Skipping.")
+        return
 
-    lag_block_1 = session_config.get("lag_block_1", 0)
-    lag_block_2 = session_config.get("lag_block_2", 0)
+    sessions_to_process_configs = []
+    if args.session:
+        try:
+            session_id_to_find = int(args.session)
+            session_config = next((ses for ses in subject_config.get("sessions", []) if ses.get("id") == session_id_to_find), None)
+            if not session_config:
+                print(f"Error for {subject_id}: Session '{args.session}' not found in main_config.toml for this subject. Aborting.")
+                return
+            sessions_to_process_configs.append(session_config)
+        except ValueError:
+            print(f"Error: --session must be an integer. Got '{args.session}'.")
+            return
+    else:
+        sessions_to_process_configs = subject_config.get("sessions", [])
+        if not sessions_to_process_configs:
+            print(f"Warning for {subject_id}: No sessions found in main_config.toml and no session specified. Skipping.")
+            return
 
-    for step in steps_to_run:
-        extra_args = None
-        if step == 'create_timings':
-            extra_args = ["--lag_block_1", str(lag_block_1), "--lag_block_2", str(lag_block_2)]
+    for session_config in sessions_to_process_configs:
+        session_id_str = str(session_config["id"])
+        print(f"--- Starting Pipeline for Subject: {subject_id}, Session: {session_id_str} ---")
 
-        if step == 'glm':
-            if not analysis_names:
-                print(f"Error for {subject_id}: --analysis is required for 'glm' step.")
-                break
+        steps_to_run = []
+        if args.step == 'all':
+            steps_to_run = ["create_timings", "preprocess_anat", "preprocess_func", "glm"]
+        elif args.step == 'preprocess':
+            steps_to_run = ["create_timings", "preprocess_anat", "preprocess_func"]
+        else:
+            steps_to_run = [args.step]
 
-            all_glm_success = True
+        analysis_names = args.analysis
+        if not analysis_names and args.step in ["glm", "all"]:
+            analysis_names = list(analysis_models.keys())
+
+        if analysis_names and args.step in ["glm", "all"]:
             for analysis_name in analysis_names:
-                print(f"--- Running GLM analysis '{analysis_name}' for Subject: {subject_id} ---")
+                if analysis_name not in analysis_models:
+                    print(f"Warning for {subject_id}: Analysis model '{analysis_name}' not found in analysis_models.toml.")
+
+        lag_block_1 = session_config.get("lag_block_1", 0)
+        lag_block_2 = session_config.get("lag_block_2", 0)
+
+        for step in steps_to_run:
+            extra_args = None
+            if step == 'create_timings':
+                extra_args = ["--lag_block_1", str(lag_block_1), "--lag_block_2", str(lag_block_2)]
+
+            if step == 'glm':
+                if not analysis_names:
+                    print(f"Error for {subject_id}: --analysis is required for 'glm' step.")
+                    break
+
+                all_glm_success = True
+                for analysis_name in analysis_names:
+                    analysis_model_config = analysis_models.get(analysis_name, {})
+                    requires_scr = analysis_model_config.get("requires_scr", False)
+                    session_has_scr = session_config.get("has_scr", False)
+
+                    if requires_scr and not session_has_scr:
+                        print(f"Skipping analysis '{analysis_name}' for subject {subject_id}, session {session_id_str} because it requires SCR data which is not available for this session.")
+                        continue
+
+                    print(f"--- Running GLM analysis '{analysis_name}' for Subject: {subject_id}, Session: {session_id_str} ---")
+                    success = run_step(
+                        subject=subject_id,
+                        session=session_id_str,
+                        config=main_config,
+                        analysis_name=analysis_name,
+                        step_name=step,
+                        extra_args=extra_args
+                    )
+                    if not success:
+                        all_glm_success = False
+                        break
+                if not all_glm_success:
+                    print(f"Stopping pipeline for {subject_id}, Session {session_id_str} because a GLM step failed.")
+                    break
+            else:
                 success = run_step(
                     subject=subject_id,
-                    session=args.session,
+                    session=session_id_str,
                     config=main_config,
-                    analysis_name=analysis_name,
+                    analysis_name=None,
                     step_name=step,
                     extra_args=extra_args
                 )
                 if not success:
-                    all_glm_success = False
+                    print(f"Stopping pipeline for {subject_id}, Session {session_id_str} because step '{step}' failed.")
                     break
-            if not all_glm_success:
-                print(f"Stopping pipeline for {subject_id} because a GLM step failed.")
-                break
-        else:
-            success = run_step(
-                subject=subject_id,
-                session=args.session,
-                config=main_config,
-                analysis_name=None,
-                step_name=step,
-                extra_args=extra_args
-            )
-            if not success:
-                print(f"Stopping pipeline for {subject_id} because step '{step}' failed.")
-                break
 
 def run_group_analysis(args, config, analysis_models):
     """Runs a specified group-level analysis."""
@@ -281,7 +309,7 @@ def main():
     parser.add_argument("--subject", help="Specify a single subject ID to process (e.g., sub-AL01). Overrides subject lists in configs.")
     parser.add_argument("--analysis", nargs='*', help="Specify one or more analysis models to run for 'glm', 'all', or 'group_analysis' step.")
     parser.add_argument("--step", choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all", "group_analysis"], required=True, help="The processing step to execute.")
-    parser.add_argument("--session", default="1", help="Specify the session number (e.g., 1).")
+    parser.add_argument("--session", help="Specify the session number (e.g., 1). If not provided, all sessions for the subject(s) will be processed.")
     parser.add_argument("--n_procs", type=int, default=1, help="Number of subjects to process in parallel.")
     parser.add_argument("--group_model", help="Specify the group analysis model name to run (required for 'group_analysis' step).")
 
