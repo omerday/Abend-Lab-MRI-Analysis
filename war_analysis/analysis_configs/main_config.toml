@@ -18,6 +18,177 @@ sessions = [
   { id = 2, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
 ]
 
+[[subjects]]
+id = "sub-MD21"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD22"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-MD23"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = false },
+  { id = 2, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD24"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true },
+  { id = 2, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD25"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true },
+  { id = 2, lag_block_1 = 0, lag_block_2 = 21, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD26"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true },
+  # TODO: Ensure lag values for session 2 are correct
+  { id = 2, lag_block_1 = 0, lag_block_2 = 0, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD27"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true },
+  { id = 2, lag_block_1 = 0, lag_block_2 = 23, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD28"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true },
+  { id = 2, lag_block_1 = 0, lag_block_2 = 19, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD30"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = true },
+  { id = 2, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+# TODO: Add sub-MD42 after lag check.
+
+[[subjects]]
+id = "sub-AL18"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL19"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL20"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL21"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL22"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL23"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL24"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL25"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL26"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL27"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL28"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 28, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL41"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL48"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-AL49"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = true }
+]
+
 # --- AFNI Parameters ---
 # Default parameters used across most analyses.
 blur_size = 4.0
