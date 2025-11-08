@@ -1,6 +1,7 @@
 import argparse
 import os
 import subprocess
+import json
 import toml
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
@@ -317,8 +318,8 @@ def main():
     args = parser.parse_args()
 
     try:
-        main_config = toml.load("analysis_configs/main_config.toml")
-        analysis_models = toml.load("analysis_configs/analysis_models.toml")
+        main_config = json.loads(json.dumps(toml.load("analysis_configs/main_config.toml")))
+        analysis_models = json.loads(json.dumps(toml.load("analysis_configs/analysis_models.toml")))
     except FileNotFoundError as e:
         print(f"Error: Configuration file not found. {e}")
         return

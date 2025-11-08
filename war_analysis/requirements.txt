@@ -1,0 +1,5 @@
+pdfkit
+fpdf2
+Pillow
+toml
+pypdf
