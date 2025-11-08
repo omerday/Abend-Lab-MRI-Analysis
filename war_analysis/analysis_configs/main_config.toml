@@ -89,7 +89,40 @@ sessions = [
   { id = 2, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
 ]
 
-# TODO: Add sub-MD42 after lag check.
+[[subjects]]
+id = "sub-MD35"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD36"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 28, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD38"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 17, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD41"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-MD42"
+group = "MDMA"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 36, has_scr = true }
+]
 
 [[subjects]]
 id = "sub-AL18"
