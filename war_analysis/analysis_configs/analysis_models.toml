@@ -41,9 +41,13 @@ type = "3dLMEr"
 model = "group*stimulus+(1|Subj)"
 description = "Compare MDMA vs Control groups in session 1 for each stimulus."
 groups = ["MDMA", "Control"]
+subject = { "MDMA" = ["sub-MD01"], "Control" = ["sub-AL01"] }
 sessions = [1]
-contrasts = ["neg_blck#0_Coef", "pos_blck#0_Coef", "neut_blck#0_Coef"]
-stimulus_labels = ["neg", "pos", "neut"]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_blck#0_Coef" },
+    { stimulus = "neut", contrast = "neut_blck#0_Coef" }
+]
 glt = [
     { sym = "group : 1*MDMA -1*Control stimulus : 1*neg", label = "neg_mdma_gt_control" },
     { sym = "group : 1*MDMA -1*Control stimulus : 1*pos", label = "pos_mdma_gt_control" },
@@ -57,11 +61,16 @@ model = "session*stimulus+(1|Subj)"
 description = "Compare session 2 vs session 1 for the MDMA group."
 groups = ["MDMA"]
 sessions = [1, 2]
-contrasts = ["neg_blck#0_Coef", "pos_blck#0_Coef", "neut_blck#0_Coef"]
-stimulus_labels = ["neg", "pos", "neut"]
+subjects = ["sub-MD01"]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_blck#0_Coef" },
+    { stimulus = "neut", contrast = "neut_blck#0_Coef" }
+]
 glt = [
     { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*neg", label = "neg_s2_gt_s1" },
-    { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*pos", label = "pos_s2_gt_s1" }
+    { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*pos", label = "pos_s2_gt_s1" },
+    { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*neut", label = "neut_s2_gt_s1" }
 ]
 
 [[by_block.group_analyses]]

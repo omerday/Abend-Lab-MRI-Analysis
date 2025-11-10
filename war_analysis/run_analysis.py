@@ -189,9 +189,45 @@ def run_group_analysis(args, config, analysis_models):
 
     # --- Subject and Mask Generation ---
     all_subjects_info = config.get("subjects", [])
-    group_model_subjects = group_model_config.get("groups")
-    
-    subjects_to_process = [s for s in all_subjects_info if s["group"] in group_model_subjects]
+    subjects_to_process = []
+
+    # Check for the new optional 'subjects' field in the group analysis configuration
+    if "subjects" in group_model_config:
+        custom_subjects = group_model_config["subjects"]
+        subjects_ids_to_include = []
+
+        if isinstance(custom_subjects, list):
+            # Case 1: A simple list of subject IDs (for single-group analyses)
+            subjects_ids_to_include = custom_subjects
+            print(f"Using custom list of {len(subjects_ids_to_include)} subjects for analysis '{args.group_model}'.")
+
+        elif isinstance(custom_subjects, dict):
+            # Case 2: A dictionary mapping group names to lists of subject IDs
+            print(f"Using custom subject lists per group for analysis '{args.group_model}'.")
+            valid_groups = group_model_config.get("groups", [])
+            for group_name, subject_list in custom_subjects.items():
+                if group_name not in valid_groups:
+                    print(f"Warning: Group '{group_name}' in custom subjects list is not in the main 'groups' for this analysis. Ignoring these subjects.")
+                    continue
+                subjects_ids_to_include.extend(subject_list)
+        
+        # Filter all subject info based on the collected custom list of IDs
+        subject_id_map = {s['id']: s for s in all_subjects_info}
+        for sub_id in subjects_ids_to_include:
+            if sub_id in subject_id_map:
+                subjects_to_process.append(subject_id_map[sub_id])
+            else:
+                print(f"Warning: Subject '{sub_id}' from custom list not found in main_config.toml. Skipping.")
+
+    else:
+        # Fallback to original logic if 'subjects' field is not provided
+        group_model_groups = group_model_config.get("groups")
+        print(f"No custom subject list found. Using all subjects from group(s): {group_model_groups}")
+        subjects_to_process = [s for s in all_subjects_info if s["group"] in group_model_groups]
+
+    if not subjects_to_process:
+        print("Error: No subjects to process after filtering. Aborting group analysis.")
+        return
     
     mask_files = []
     for sub_info in subjects_to_process:
@@ -226,32 +262,49 @@ def run_group_analysis(args, config, analysis_models):
     ]
 
     if analysis_type == "3dLMEr":
-        # Generate data table
+        # --- Header Generation ---
+        model_factors = [f.split("(")[0] for f in group_model_config["model"].split("*") if "+" not in f]
+        header_columns = ["Subj"] + model_factors + ["InputFile"]
+        header = "\t".join(header_columns) + "\n"
+
+        # --- Data Table Generation ---
         data_table_path = os.path.join(output_dir, "data_table.txt")
-        model_factors = group_model_config["model"].split("*")
-        header = "Sub" + "\t".join(f.split("(")[0] for f in model_factors if "+" not in f) + "\tInputFile\n"
         
+        if "data_table_rows" not in group_model_config:
+            print(f"Error: For 3dLMEr analysis '{args.group_model}', 'data_table_rows' is missing in the configuration.")
+            return
+
         with open(data_table_path, "w") as f:
             f.write(header)
+            
             for sub_info in subjects_to_process:
                 for ses_id in group_model_config.get("sessions", []):
-                    for i, contrast in enumerate(group_model_config["contrasts"]):
+                    for row_def in group_model_config["data_table_rows"]:
+                        contrast_name = row_def["contrast"]
+                        
                         stats_file = os.path.join(
                             config["output_dir"], sub_info["id"], f"ses-{ses_id}", "glm", analysis_name,
                             f"{sub_info['id']}_{analysis_name}.results",
-                            f"stats.{sub_info['id']}_{analysis_name}+tlrc[{contrast}]"
+                            f"stats.{sub_info['id']}_{analysis_name}+tlrc[{contrast_name}]"
                         )
                         if not os.path.exists(stats_file.split("[")[0] + ".HEAD"):
                             print(f"Warning: Stats file not found, skipping: {stats_file}")
                             continue
                         
-                        line = f"{sub_info['id']}\t"
-                        if "session" in header:
-                            line += f"ses-{ses_id}\t"
-                        if "group" in header:
-                            line += f"{sub_info['group']}\t"
-                        line += f"{group_model_config['stimulus_labels'][i]}\t"
-                        line += f"{stats_file}\n"
+                        # --- Dynamic Row Construction ---
+                        row_data = {
+                            "Subj": sub_info['id'],
+                            "session": f"ses-{ses_id}",
+                            "group": sub_info.get('group', 'NA'),
+                            "InputFile": stats_file
+                        }
+                        # Add stimulus value from the row definition, making sure the key exists
+                        if "stimulus" in row_def:
+                            row_data["stimulus"] = row_def["stimulus"]
+
+                        # Build the line in the correct order based on the header
+                        line_parts = [str(row_data.get(col_name, "NA")) for col_name in header_columns]
+                        line = "\t".join(line_parts) + "\n"
                         f.write(line)
         
         # Format GLT codes
