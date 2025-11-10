@@ -127,14 +127,19 @@ This file defines the specific parameters for each first-level GLM variation. Ea
 [model_name]
 description = "A brief description of what this model analyzes."
 stim_files = ["path/to/stim_file1.1D", "path/to/stim_file2.1D"] # Paths relative to subject's func/timings directory.
-stim_labels = ["LABEL1", "LABEL2"] # Corresponding labels for regressors.
 basis = "BLOCK(duration,onset_delay)" # AFNI basis function (e.g., BLOCK, GAM, TENT).
 glt = [ # Optional: General Linear Tests (contrasts) to compute.
     { sym = "LABEL1 - LABEL2", label = "contrast_name" },
     { sym = "LABEL1 + LABEL2", label = "sum_contrast" }
 ]
 stim_types = "AM1" # Optional: AFNI stimulus type (e.g., AM1, AM2, file). Defaults to AM1 if not specified.
-subjects = ["sub-AL01", "sub-AL03"] # Optional: Override `all_subjects` for this specific model.
+subjects = ["sub-AL01", "sub-AL03"] # Optional: List of subjects for first-level analysis. Overrides global subject list.
+
+# For 3dLMEr group analyses, define the data table rows explicitly:
+# data_table_rows = [
+#     { stimulus = "LABEL1", contrast = "LABEL1_Coef" },
+#     { stimulus = "LABEL2", contrast = "LABEL2_Coef" }
+# ]
 ```
 
 **Examples:**
@@ -249,6 +254,7 @@ Group-level analyses are integrated into the main `run_analysis.py` script via t
 -   **Configurable Models**: Define complex group analyses directly in `analysis_models.toml`.
 -   **Multiple Analysis Types**: Supports both one-sample t-tests (`3dttest++`) and linear mixed-effects modeling (`3dLMEr`).
 -   **Automatic Data Handling**: The script automatically finds subjects, filters them by group, collects the correct first-level statistical files, and generates the data tables required by `3dLMEr`.
+-   **Flexible Subject Selection**: Specify exact lists of subjects for group analyses, either globally or per group.
 
 **Configuration for Group Analysis (in `analysis_configs/analysis_models.toml`):**
 
@@ -264,8 +270,15 @@ Within a first-level model (e.g., `[by_block]`), you can define a list of group 
     description = "Compare MDMA vs Control groups in session 1."
     groups = ["MDMA", "Control"] # Subject groups from main_config.toml
     sessions = [1] # Which session(s) to include
-    contrasts = ["neg_blck#0_Coef", "pos_blck#0_Coef", "neut_blck#0_Coef"] # Sub-bricks from 1st-level
-    stimulus_labels = ["neg", "pos", "neut"] # Labels for the 'stimulus' factor in the LME model
+
+    # Define the rows for the 3dLMEr data table explicitly.
+    # Each entry links a stimulus label (for the 'stimulus' factor in the LME model)
+    # to its corresponding first-level contrast sub-brick.
+    data_table_rows = [
+        { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
+        { stimulus = "pos",  contrast = "pos_blck#0_Coef" },
+        { stimulus = "neut", contrast = "neut_blck#0_Coef" }
+    ]
     glt = [ # General linear tests for the group model
         { sym = "group : 1*MDMA -1*Control stimulus : 1*neg", label = "neg_mdma_gt_control" }
     ]
@@ -282,6 +295,38 @@ Within a first-level model (e.g., `[by_block]`), you can define a list of group 
     sessions = [1]
     contrast = "neg-neut_blck#0_Coef" # The specific sub-brick from the first-level GLT to test.
     setA_label = "MDMA_S1_NegVsNeut" # Label for the output dataset.
+    ```
+
+### Custom Subject Selection for Group Analyses
+
+For group analyses, you can specify a custom list of subjects to include, overriding the default behavior of including all subjects from the defined `groups`. This is done using the optional `subjects` field within the `[[...group_analyses]]` table.
+
+*   **Single Group Analysis (List of Subjects):**
+    If your group analysis involves a single group, you can provide a simple list of subject IDs.
+
+    ```toml
+    [[by_block.group_analyses]]
+    name = "mdma_session_comparison"
+    type = "3dLMEr"
+    # ...
+    groups = ["MDMA"]
+    sessions = [1, 2]
+    subjects = ["sub-MD01", "sub-MD02", "sub-MD05"] # Only these subjects will be included.
+    # ...
+    ```
+
+*   **Multi-Group Analysis (Table of Subjects per Group):**
+    If your group analysis involves multiple groups, or if you prefer more explicit control, you can provide a table where keys are group names (matching those in the `groups` array) and values are lists of subject IDs for each respective group.
+
+    ```toml
+    [[by_block.group_analyses]]
+    name = "mdma_vs_control_s1"
+    type = "3dLMEr"
+    # ...
+    groups = ["MDMA", "Control"]
+    sessions = [1]
+    subjects = { MDMA = ["sub-MD01", "sub-MD02", "sub-MD03"], Control = ["sub-CT01", "sub-CT02", "sub-CT04"] }
+    # ...
     ```
 
 **Example Usage for Group Analysis:**
