@@ -30,6 +30,8 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
+echo "Starting from path `pwd`"
+
 # Validate required arguments
 if [ -z "$ANALYSIS_TYPE" ] || [ -z "$OUTPUT_PREFIX" ] || [ -z "$MASK" ]; then
     echo "Usage: $0 --type <type> --output_prefix <prefix> --mask <file> [options]"
@@ -56,12 +58,13 @@ if [ "$ANALYSIS_TYPE" == "3dLMEr" ]; then
     echo "Model: ${MODEL}"
     echo "Data Table: ${DATA_TABLE_FILE}"
 
-    3dLMEr -prefix "$OUTPUT_PREFIX" \
-        -mask "$MASK" \
-        -SS_type 3 \
-        -model "$MODEL" \
-        ${GLT_CODES} \
-        -dataTable -`cat "$DATA_TABLE_FILE"`
+    eval "3dLMEr -prefix \"$OUTPUT_PREFIX\" \\
+        -mask \"$MASK\" \\
+        -SS_type 3 \\
+        -model \"$MODEL\" \\
+        ${GLT_CODES} \\
+        -ClustSim \\
+        -dataTable @\"$DATA_TABLE_FILE\""
 
 elif [ "$ANALYSIS_TYPE" == "3dttest++" ]; then
     if [ -z "$SET_A_LABEL" ] || [ -z "$SET_A_FILES" ]; then

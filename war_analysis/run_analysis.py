@@ -247,12 +247,13 @@ def run_group_analysis(args, config, analysis_models):
         "3dmask_tool",
         "-input"] + mask_files + [
         "-prefix", group_mask_path,
-        "-frac", "0.5"
+        "-frac", "0.4",
+        "-overwrite"
     ], check=True)
 
     # --- Analysis-specific logic ---
     analysis_type = group_model_config["type"]
-    script_path = os.path.join("scripts", "04_run_group_analysis.sh")
+    script_path = os.path.abspath(os.path.join("scripts", "04_run_group_analysis.sh"))
     
     command = [
         "bash", script_path,
@@ -263,8 +264,11 @@ def run_group_analysis(args, config, analysis_models):
 
     if analysis_type == "3dLMEr":
         # --- Header Generation ---
-        model_factors = [f.split("(")[0] for f in group_model_config["model"].split("*") if "+" not in f]
-        header_columns = ["Subj"] + model_factors + ["InputFile"]
+        table_columns = group_model_config.get("table_columns", [])
+        if not table_columns:
+            print(f"Error: For 3dLMEr analysis '{args.group_model}', 'table_columns' is missing in the configuration.")
+            return
+        header_columns = ["Subj"] + table_columns + ["InputFile"]
         header = "\t".join(header_columns) + "\n"
 
         # --- Data Table Generation ---
@@ -298,9 +302,11 @@ def run_group_analysis(args, config, analysis_models):
                             "group": sub_info.get('group', 'NA'),
                             "InputFile": stats_file
                         }
-                        # Add stimulus value from the row definition, making sure the key exists
-                        if "stimulus" in row_def:
-                            row_data["stimulus"] = row_def["stimulus"]
+                        
+                        # Add factors from the data_table_rows definition
+                        for key, value in row_def.items():
+                            if key != 'contrast':
+                                row_data[key] = value
 
                         # Build the line in the correct order based on the header
                         line_parts = [str(row_data.get(col_name, "NA")) for col_name in header_columns]
