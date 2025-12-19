@@ -314,7 +314,7 @@ def run_group_analysis(args, config, analysis_models):
                         f.write(line)
         
         # Format GLT codes
-        glt_codes = " ".join([f"-gltCode {g['label']} \'{g['sym']}\'" for g in group_model_config["glt"]])
+        glt_codes = " ".join([f"-gltCode {g['label']} \"{g['sym']}\"" for g in group_model_config["glt"]])
 
         command.extend([
             "--data_table", data_table_path,
@@ -366,7 +366,7 @@ def run_group_analysis(args, config, analysis_models):
 def main():
     """Main function to run the analysis pipeline."""
     parser = argparse.ArgumentParser(description="fMRI Analysis Pipeline Runner for WAR task")
-    parser.add_argument("--subject", help="Specify a single subject ID to process (e.g., sub-AL01). Overrides subject lists in configs.")
+    parser.add_argument("--subject", nargs='*', help="Specify subject IDs to process (e.g., sub-AL01). Overrides subject lists in configs.")
     parser.add_argument("--analysis", nargs='*', help="Specify one or more analysis models to run for 'glm', 'all', or 'group_analysis' step.")
     parser.add_argument("--step", choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all", "group_analysis"], required=True, help="The processing step to execute.")
     parser.add_argument("--session", help="Specify the session number (e.g., 1). If not provided, all sessions for the subject(s) will be processed.")
@@ -389,7 +389,7 @@ def main():
 
     subjects_to_process_ids = []
     if args.subject:
-        subjects_to_process_ids = [args.subject]
+        subjects_to_process_ids = [subj for subj in args.subject]
     elif args.analysis and args.step in ["glm", "all"]:
         first_analysis = args.analysis[0]
         model = analysis_models.get(first_analysis, {})
