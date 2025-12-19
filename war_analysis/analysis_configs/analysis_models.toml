@@ -81,6 +81,49 @@ glt = [
 ]
 
 [[by_block.group_analyses]]
+name = "mdma_group_s1"
+type = "3dLMEr"
+model = "stimulus+(1|Subj)"
+table_columns = ["group", "session", "stimulus"]
+description = "3dLME of mdma group (Experimental)."
+groups = ["MDMA"]
+subjects = ["sub-MD21", "sub-MD23", "sub-MD24", "sub-MD25",
+            "sub-MD27", "sub-MD28", "sub-MD30", "sub-MD35"]
+sessions = [1]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_blck#0_Coef" },
+    { stimulus = "neut", contrast = "neut_blck#0_Coef" }
+]
+glt = [
+    { sym = "stimulus : 1*neg -1*neut", label = "neg_gt_neut" },
+    { sym = "stimulus : 1*pos -1*neut", label = "pos_gt_neut" },
+    { sym = "stimulus : 1*neg -1*pos", label = "neg_gt_pos" }
+]
+
+[[by_block.group_analyses]]
+name = "control_group"
+type = "3dLMEr"
+model = "stimulus+(1|Subj)"
+table_columns = ["group", "session", "stimulus"]
+description = "3dLME of Control group (Experimental)."
+groups = ["Control"]
+subjects = ["sub-AL19", "sub-AL20", "sub-AL21", "sub-AL22", "sub-AL23", 
+            "sub-AL24", "sub-AL25", "sub-AL26", "sub-AL27", "sub-AL28", 
+            "sub-AL48", "sub-AL49"]
+sessions = [1]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_blck#0_Coef" },
+    { stimulus = "neut", contrast = "neut_blck#0_Coef" }
+]
+glt = [
+    { sym = "stimulus : 1*neg -1*neut", label = "neg_gt_neut" },
+    { sym = "stimulus : 1*pos -1*neut", label = "pos_gt_neut" },
+    { sym = "stimulus : 1*neg -1*pos", label = "neg_gt_pos" }
+]
+
+[[by_block.group_analyses]]
 name = "mdma_s1_neg_vs_neut"
 type = "3dttest++"
 description = "One-sample t-test for the MDMA group in session 1 on the neg-neut contrast."
