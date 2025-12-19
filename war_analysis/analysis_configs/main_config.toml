@@ -222,6 +222,69 @@ sessions = [
   { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = true }
 ]
 
+[[subjects]]
+id = "sub-AL50"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-AL51"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-AL52"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-AL53"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-AL55"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-AL58"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-AL59"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-AL60"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
+[[subjects]]
+id = "sub-AL61"
+group = "Control"
+sessions = [
+  { id = 1, lag_block_1 = 0, lag_block_2 = 0, has_scr = false }
+]
+
 # --- AFNI Parameters ---
 # Default parameters used across most analyses.
 blur_size = 4.0
