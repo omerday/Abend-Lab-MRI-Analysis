@@ -11,11 +11,13 @@ output_dir = "/media/user/PortableSSD/TIM/Output"
 # --- Subjects ---
 # Default list of all subjects to be processed.
 # An analysis model can override this by specifying its own subject list.
-all_subjects = ["sub-489", "sub-500",            "sub-502", 
+all_subjects = ["sub-489", "sub-499", "sub-500", "sub-502", 
                 "sub-503", "sub-504", "sub-505", "sub-506", 
                 "sub-507", "sub-508", "sub-509", "sub-510", 
                 "sub-511", "sub-512", "sub-513", "sub-514", 
-                "sub-515", "sub-516"]
+                "sub-515", "sub-516", "sub-519", "sub-608",
+                "sub-619", "sub-620", "sub-625", "sub-638",
+                "sub-649", "sub-669", "sub-682"]
 
 # --- AFNI Parameters ---
 # Default parameters used across most analyses.
