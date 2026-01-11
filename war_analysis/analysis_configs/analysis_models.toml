@@ -61,10 +61,12 @@ table_columns = ["group", "session", "stimulus"]
 description = "Compare MDMA vs Control groups in session 1 for each stimulus."
 groups = ["MDMA", "Control"]
 subjects = { "MDMA" = ["sub-MD21", "sub-MD23", "sub-MD24", "sub-MD25",
-                      "sub-MD27", "sub-MD28", "sub-MD30", "sub-MD35"], "Control" = ["sub-AL19",
+                      "sub-MD27", "sub-MD28", "sub-MD30", "sub-MD35", "sub-MD38",
+                      "sub-MD41", "sub-MD42"], "Control" = ["sub-AL19",
                       "sub-AL20", "sub-AL21", "sub-AL22", "sub-AL23", "sub-AL24",
                       "sub-AL25", "sub-AL26", "sub-AL27", "sub-AL28", "sub-AL48",
-                      "sub-AL49"] }
+                      "sub-AL49", "sub-AL50", "sub-AL51", "sub-AL52", "sub-AL53",
+                      "sub-AL55", "sub-AL59", "sub-AL60", "sub-AL61"] }
 sessions = [1]
 data_table_rows = [
     { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
@@ -86,7 +88,9 @@ description = "Compare session 2 vs session 1 for the MDMA group."
 groups = ["MDMA"]
 sessions = [1, 2]
 subjects = ["sub-MD23", "sub-MD24", "sub-MD25",
-            "sub-MD27", "sub-MD28", "sub-MD30"]
+            "sub-MD27", "sub-MD28", "sub-MD30",
+            "sub-MD35", "sub-MD38", "sub-MD41",
+            "sub-MD42"]
 data_table_rows = [
     { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
     { stimulus = "pos",  contrast = "pos_blck#0_Coef" },
