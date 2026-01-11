@@ -20,6 +20,24 @@ glt = [
     { sym = "neg_blck - pos_blck", label = "neg-pos_blck" }
 ]
 
+[by_image]
+description = "GLM analysis by emotional images (Negative, Positive, Neutral)."
+stim_files = [
+    "timings/negative_image.1D",
+    "timings/positive_image.1D",
+    "timings/neutral_image.1D",
+    "timings/rest.1D"
+]
+stim_labels = ["neg_img", "pos_img", "neut_img", "rest"]
+basis = "BLOCK(22,1)"
+requires_scr = false
+glt = [
+    { sym = "neg_img - neut_img", label = "neg-neut_img" },
+    { sym = "neg_img - rest", label = "neg_img-rest" },
+    { sym = "pos_img - neut_img", label = "pos-neut_img" },
+    { sym = "neg_img - pos_img", label = "neg-pos_img" }
+]
+
 # --- Model: by_scr_bins ---
 # Replicates the analysis from first_level_analysis_by_scr_bins.sh
 [by_scr_bins]
