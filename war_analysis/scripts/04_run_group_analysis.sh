@@ -192,9 +192,9 @@ if [ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]; then
                  SUBBRICKS_ARG=(-set_subbricks -1 "$STAT_LABEL" "$STAT_LABEL")
             fi
 
-            SAFE_NAME=$(echo "$INTEN_LABEL" | tr ' ' '_')
+            SAFE_NAME=$(echo "$INTEN_LABEL" | tr ' :' '__')
             # Fallback if INTEN_LABEL was empty or just spaces
-            if [ -z "$SAFE_NAME" ]; then SAFE_NAME=$(echo "$STAT_LABEL" | tr ' ' '_'); fi
+            if [ -z "$SAFE_NAME" ]; then SAFE_NAME=$(echo "$STAT_LABEL" | tr ' :' '__'); fi
 
             echo "Generating image for: $SAFE_NAME ($STAT_LABEL)"
             
@@ -213,6 +213,9 @@ if [ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]; then
                 "${SUBBRICKS_ARG[@]}" \
                 -opacity            5 \
                 -zerocolor          white \
+                -set_dicom_xyz -20 -8 -16 \
+                -delta_slices 6 15 10 \
+                -clusterize "-NN 2 -clust_nvox 35" \
                 -prefix             "${CHAUFFEUR_DIR}/${SAFE_NAME}" \
                 -set_xhairs         OFF \
                 -label_mode         1 \
