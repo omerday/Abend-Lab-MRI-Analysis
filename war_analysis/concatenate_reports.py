@@ -21,7 +21,9 @@ def main():
 
     print("Scanning for reports to concatenate...")
 
-    subject_folders = sorted(glob.glob(os.path.join(dropbox_dir, 'sub-*')))
+    subject_folders = glob.glob(os.path.join(dropbox_dir, 'sub-AL*'))
+    subject_folders.extend(glob.glob(os.path.join(dropbox_dir, 'sub-MD*')))
+    subject_folders = sorted(subject_folders)
 
     for subject_folder in subject_folders:
         subject_id = os.path.basename(subject_folder)
