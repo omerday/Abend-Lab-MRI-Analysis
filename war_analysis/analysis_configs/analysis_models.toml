@@ -29,7 +29,7 @@ stim_files = [
     "timings/rest.1D"
 ]
 stim_labels = ["neg_img", "pos_img", "neut_img", "rest"]
-basis = "BLOCK(22,1)"
+basis = "BLOCK(4,1)"
 requires_scr = false
 glt = [
     { sym = "neg_img - neut_img", label = "neg-neut_img" },
@@ -154,4 +154,109 @@ sessions = [1]
 subjects = ["sub-MD21", "sub-MD22", "sub-MD23", "sub-MD24", "sub-MD25",
             "sub-MD27", "sub-MD28", "sub-MD30", "sub-MD35"]
 contrast = "neg-neut_blck#0_Coef"
+setA_label = "MDMA_S1_NegVsNeut"
+
+# --- Group Analyses for by_image model ---
+
+[[by_image.group_analyses]]
+name = "mdma_vs_control_s1_image"
+type = "3dLMEr"
+model = "group*stimulus+(1|Subj)"
+table_columns = ["group", "session", "stimulus"]
+description = "Compare MDMA vs Control groups in session 1 for each stimulus."
+groups = ["MDMA", "Control"]
+subjects = { "MDMA" = ["sub-MD21", "sub-MD23", "sub-MD24", "sub-MD25",
+                      "sub-MD27", "sub-MD28", "sub-MD30", "sub-MD35", "sub-MD38",
+                      "sub-MD41", "sub-MD42"], "Control" = ["sub-AL19",
+                      "sub-AL20", "sub-AL21", "sub-AL22", "sub-AL23", "sub-AL24",
+                      "sub-AL25", "sub-AL26", "sub-AL27", "sub-AL28", "sub-AL48",
+                      "sub-AL49", "sub-AL50", "sub-AL51", "sub-AL52", "sub-AL53",
+                      "sub-AL55", "sub-AL59", "sub-AL60", "sub-AL61"] }
+sessions = [1]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_img#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_img#0_Coef" },
+    { stimulus = "neut", contrast = "neut_img#0_Coef" }
+]
+glt = [
+    { sym = "group : 1*MDMA -1*Control stimulus : 1*neg", label = "neg_mdma_gt_control" },
+    { sym = "group : 1*MDMA -1*Control stimulus : 1*pos", label = "pos_mdma_gt_control" },
+    { sym = "group : 1*MDMA -1*Control stimulus : 1*neut", label = "neut_mdma_gt_control" }
+]
+
+[[by_image.group_analyses]]
+name = "mdma_session_comparison_image"
+type = "3dLMEr"
+model = "session*stimulus+(1|Subj)"
+table_columns = ["group", "session", "stimulus"]
+description = "Compare session 2 vs session 1 for the MDMA group."
+groups = ["MDMA"]
+sessions = [1, 2]
+subjects = ["sub-MD23", "sub-MD24", "sub-MD25",
+            "sub-MD27", "sub-MD28", "sub-MD30",
+            "sub-MD35", "sub-MD38", "sub-MD41",
+            "sub-MD42"]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_img#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_img#0_Coef" },
+    { stimulus = "neut", contrast = "neut_img#0_Coef" }
+]
+glt = [
+    { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*neg", label = "neg_s2_gt_s1" },
+    { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*pos", label = "pos_s2_gt_s1" },
+    { sym = "session : 1*ses-2 -1*ses-1 stimulus : 1*neut", label = "neut_s2_gt_s1" }
+]
+
+[[by_image.group_analyses]]
+name = "mdma_group_s1"
+type = "3dLMEr"
+model = "stimulus+(1|Subj)"
+table_columns = ["group", "session", "stimulus"]
+description = "3dLME of mdma group (Experimental)."
+groups = ["MDMA"]
+subjects = ["sub-MD21", "sub-MD23", "sub-MD24", "sub-MD25",
+            "sub-MD27", "sub-MD28", "sub-MD30", "sub-MD35"]
+sessions = [1]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_img#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_img#0_Coef" },
+    { stimulus = "neut", contrast = "neut_img#0_Coef" }
+]
+glt = [
+    { sym = "stimulus : 1*neg -1*neut", label = "neg_gt_neut" },
+    { sym = "stimulus : 1*pos -1*neut", label = "pos_gt_neut" },
+    { sym = "stimulus : 1*neg -1*pos", label = "neg_gt_pos" }
+]
+
+[[by_image.group_analyses]]
+name = "control_group"
+type = "3dLMEr"
+model = "stimulus+(1|Subj)"
+table_columns = ["group", "session", "stimulus"]
+description = "3dLME of Control group (Experimental)."
+groups = ["Control"]
+subjects = ["sub-AL19", "sub-AL20", "sub-AL21", "sub-AL22", "sub-AL23", 
+            "sub-AL24", "sub-AL25", "sub-AL26", "sub-AL27", "sub-AL28", 
+            "sub-AL48", "sub-AL49"]
+sessions = [1]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_img#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_img#0_Coef" },
+    { stimulus = "neut", contrast = "neut_img#0_Coef" }
+]
+glt = [
+    { sym = "stimulus : 1*neg -1*neut", label = "neg_gt_neut" },
+    { sym = "stimulus : 1*pos -1*neut", label = "pos_gt_neut" },
+    { sym = "stimulus : 1*neg -1*pos", label = "neg_gt_pos" }
+]
+
+[[by_image.group_analyses]]
+name = "mdma_s1_neg_vs_neut"
+type = "3dttest++"
+description = "One-sample t-test for the MDMA group in session 1 on the neg-neut contrast."
+groups = ["MDMA"]
+sessions = [1]
+subjects = ["sub-MD21", "sub-MD22", "sub-MD23", "sub-MD24", "sub-MD25",
+            "sub-MD27", "sub-MD28", "sub-MD30", "sub-MD35"]
+contrast = "neg-neut_img#0_Coef"
 setA_label = "MDMA_S1_NegVsNeut"
