@@ -5,6 +5,12 @@
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
+# Get the directory where the script is located
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+# Source the color utility script
+source "${SCRIPT_DIR}/utils_colors.sh"
+
 # Default values
 SUBJECT=""
 SESSION="1"
@@ -18,13 +24,13 @@ while [[ "$#" -gt 0 ]]; do
         --session) SESSION="$2"; shift 2;;
         --input) INPUT_DIR="$2"; shift 2;;
         --output) OUTPUT_DIR="$2"; shift 2;;
-        *) echo "Unknown option: $1" >&2; exit 1;;
+        *) log_error "Unknown option: $1"; exit 1;;
     esac
 done
 
 # Validate required arguments
 if [ -z "$SUBJECT" ] || [ -z "$SESSION" ] || [ -z "$INPUT_DIR" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir>" >&2
+    log_error "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir>"
     exit 1
 fi
 
@@ -35,15 +41,15 @@ FUNC_PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc"
 # Find the MNI template
 MNI_TEMPLATE=$(find "${INPUT_DIR}/.." -name "MNI152_2009_template.nii.gz" | head -n 1)
 if [ -z "$MNI_TEMPLATE" ]; then
-    echo "Error: MNI152_2009_template.nii.gz not found." >&2
+    log_error "MNI152_2009_template.nii.gz not found."
     exit 1
 fi
 
-echo "--- Starting Functional Preprocessing for ${SUBJECT}, ${SESSION_PREFIX} ---"
+print_header "Starting Functional Preprocessing for ${SUBJECT}, ${SESSION_PREFIX}"
 
 # Clean up previous output directory
 if [ -d "$FUNC_PREPROC_DIR" ]; then
-    echo "Found existing func_preproc folder, deleting it: ${FUNC_PREPROC_DIR}"
+    log_warn "Found existing func_preproc folder, deleting it: ${FUNC_PREPROC_DIR}"
     rm -rf "$FUNC_PREPROC_DIR"
 fi
 
@@ -51,6 +57,7 @@ fi
 mkdir -p "$FUNC_PREPROC_DIR"
 cd "$FUNC_PREPROC_DIR"
 
+log_info "Running afni_proc.py..."
 afni_proc.py \
     -subj_id "${SUBJECT}_preproc" \
     -dsets_me_run \
@@ -88,4 +95,4 @@ afni_proc.py \
     -regress_censor_outliers 0.05 \
     -execute
 
-echo "--- Functional Preprocessing for ${SUBJECT} Complete ---"
+log_success "Functional Preprocessing for ${SUBJECT} Complete"

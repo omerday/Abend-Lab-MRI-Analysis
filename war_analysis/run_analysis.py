@@ -5,6 +5,16 @@ import json
 import toml
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn
+from rich import print as rprint
+from rich.traceback import install
+
+# Install rich traceback handler
+install()
+
+console = Console()
 
 def run_step(subject, session, config, analysis_name, step_name, extra_args=None):
     """Helper function to run a single shell script for a subject."""
@@ -16,12 +26,12 @@ def run_step(subject, session, config, analysis_name, step_name, extra_args=None
     }
     script_name = script_map.get(step_name)
     if not script_name:
-        print(f"Error: Invalid step name '{step_name}'")
+        console.log(f"[bold red]Error:[/] Invalid step name '{step_name}'")
         return False
 
     script_path = os.path.join("scripts", script_name)
     if not os.path.exists(script_path):
-        print(f"Error: Script not found at {script_path}")
+        console.log(f"[bold red]Error:[/] Script not found at {script_path}")
         return False
 
     command = [
@@ -40,7 +50,7 @@ def run_step(subject, session, config, analysis_name, step_name, extra_args=None
     if extra_args:
         command.extend(extra_args)
 
-    print(f"Executing for {subject}: {' '.join(command)}")
+    console.log(f"[dim]Executing for {subject}: {' '.join(command)}[/]")
 
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
@@ -55,18 +65,18 @@ def run_step(subject, session, config, analysis_name, step_name, extra_args=None
         process.wait()
 
     if process.returncode == 0:
-        print(f"Successfully completed {step_name} for {subject}. Log: {log_file_path}")
+        console.log(f"[green]✓ {step_name}[/] completed for [bold]{subject}[/]")
         return True
     else:
-        print(f"Error running {step_name} for {subject}. Check log for details: {log_file_path}")
+        console.log(f"[bold red]✖ {step_name}[/] failed for [bold]{subject}[/]. See log: [underline]{log_file_path}[/]")
         return False
 
-def process_subject(subject_id, args, main_config, analysis_models):
+def process_subject(subject_id, args, main_config, analysis_models, progress=None, task_id=None):
     """Runs the requested pipeline steps for a single subject."""
     # Find subject-specific config
     subject_config = next((s for s in main_config.get("subjects", []) if s.get("id") == subject_id), None)
     if not subject_config:
-        print(f"Warning for {subject_id}: Subject configuration not found in main_config.toml. Skipping.")
+        console.log(f"[yellow]Warning:[/] Subject {subject_id} configuration not found. Skipping.")
         return
 
     sessions_to_process_configs = []
@@ -75,22 +85,22 @@ def process_subject(subject_id, args, main_config, analysis_models):
             session_id_to_find = int(args.session)
             session_config = next((ses for ses in subject_config.get("sessions", []) if ses.get("id") == session_id_to_find), None)
             if not session_config:
-                print(f"Error for {subject_id}: Session '{args.session}' not found in main_config.toml for this subject. Aborting.")
+                console.log(f"[red]Error:[/] Session '{args.session}' not found for {subject_id}. Aborting.")
                 return
             sessions_to_process_configs.append(session_config)
         except ValueError:
-            print(f"Error: --session must be an integer. Got '{args.session}'.")
+            console.log(f"[red]Error:[/] --session must be an integer. Got '{args.session}'.")
             return
     else:
         sessions_to_process_configs = subject_config.get("sessions", [])
         if not sessions_to_process_configs:
-            print(f"Warning for {subject_id}: No sessions found in main_config.toml and no session specified. Skipping.")
+            console.log(f"[yellow]Warning:[/] No sessions found for {subject_id}. Skipping.")
             return
 
     for session_config in sessions_to_process_configs:
         session_id_str = str(session_config["id"])
-        print(f"--- Starting Pipeline for Subject: {subject_id}, Session: {session_id_str} ---")
-
+        
+        # Determine steps to run
         steps_to_run = []
         if args.step == 'all':
             steps_to_run = ["create_timings", "preprocess_anat", "preprocess_func", "glm"]
@@ -106,19 +116,22 @@ def process_subject(subject_id, args, main_config, analysis_models):
         if analysis_names and args.step in ["glm", "all"]:
             for analysis_name in analysis_names:
                 if analysis_name not in analysis_models:
-                    print(f"Warning for {subject_id}: Analysis model '{analysis_name}' not found in analysis_models.toml.")
+                    console.log(f"[yellow]Warning:[/] Analysis model '{analysis_name}' not found.")
 
         lag_block_1 = session_config.get("lag_block_1", 0)
         lag_block_2 = session_config.get("lag_block_2", 0)
 
         for step in steps_to_run:
+            if progress and task_id:
+                progress.update(task_id, description=f"[cyan]{subject_id}[/] - {step}")
+
             extra_args = None
             if step == 'create_timings':
                 extra_args = ["--lag_block_1", str(lag_block_1), "--lag_block_2", str(lag_block_2)]
 
             if step == 'glm':
                 if not analysis_names:
-                    print(f"Error for {subject_id}: --analysis is required for 'glm' step.")
+                    console.log(f"[red]Error:[/] --analysis is required for 'glm' step.")
                     break
 
                 all_glm_success = True
@@ -128,10 +141,12 @@ def process_subject(subject_id, args, main_config, analysis_models):
                     session_has_scr = session_config.get("has_scr", False)
 
                     if requires_scr and not session_has_scr:
-                        print(f"Skipping analysis '{analysis_name}' for subject {subject_id}, session {session_id_str} because it requires SCR data which is not available for this session.")
+                        console.log(f"[dim]Skipping '{analysis_name}' for {subject_id} (No SCR data)[/]")
                         continue
+                    
+                    if progress and task_id:
+                        progress.update(task_id, description=f"[cyan]{subject_id}[/] - glm: {analysis_name}")
 
-                    print(f"--- Running GLM analysis '{analysis_name}' for Subject: {subject_id}, Session: {session_id_str} ---")
                     success = run_step(
                         subject=subject_id,
                         session=session_id_str,
@@ -144,7 +159,7 @@ def process_subject(subject_id, args, main_config, analysis_models):
                         all_glm_success = False
                         break
                 if not all_glm_success:
-                    print(f"Stopping pipeline for {subject_id}, Session {session_id_str} because a GLM step failed.")
+                    console.log(f"[red]Stopping pipeline for {subject_id} because a GLM step failed.[/]")
                     break
             else:
                 success = run_step(
@@ -156,33 +171,34 @@ def process_subject(subject_id, args, main_config, analysis_models):
                     extra_args=extra_args
                 )
                 if not success:
-                    print(f"Stopping pipeline for {subject_id}, Session {session_id_str} because step '{step}' failed.")
+                    console.log(f"[red]Stopping pipeline for {subject_id} because '{step}' failed.[/]")
                     break
+    
+    if progress and task_id:
+        progress.update(task_id, advance=1)
 
 def run_group_analysis(args, config, analysis_models):
     """Runs a specified group-level analysis."""
+    console.print(Panel(f"Group Analysis: [bold cyan]{args.group_model}[/]", style="bold blue"))
+
     if not args.analysis or len(args.analysis) > 1:
-        print("Error: Please specify exactly one first-level analysis model using --analysis.")
+        console.log("[red]Error:[/] Please specify exactly one first-level analysis model using --analysis.")
         return
     analysis_name = args.analysis[0]
 
     if not args.group_model:
-        print("Error: Please specify a group analysis model using --group_model.")
+        console.log("[red]Error:[/] Please specify a group analysis model using --group_model.")
         return
 
-    # Find the first-level analysis model
     f_level_model = analysis_models.get(analysis_name)
     if not f_level_model:
-        print(f"Error: First-level analysis '{analysis_name}' not found.")
+        console.log(f"[red]Error:[/] First-level analysis '{analysis_name}' not found.")
         return
 
-    # Find the group analysis model within the first-level model
     group_model_config = next((g for g in f_level_model.get("group_analyses", []) if g["name"] == args.group_model), None)
     if not group_model_config:
-        print(f"Error: Group analysis model '{args.group_model}' not found under '{analysis_name}'.")
+        console.log(f"[red]Error:[/] Group analysis model '{args.group_model}' not found under '{analysis_name}'.")
         return
-
-    print(f"--- Starting Group Analysis: {analysis_name} / {args.group_model} ---")
 
     output_dir = os.path.join(config["output_dir"], "group_analysis", analysis_name, args.group_model)
     os.makedirs(output_dir, exist_ok=True)
@@ -191,42 +207,35 @@ def run_group_analysis(args, config, analysis_models):
     all_subjects_info = config.get("subjects", [])
     subjects_to_process = []
 
-    # Check for the new optional 'subjects' field in the group analysis configuration
     if "subjects" in group_model_config:
         custom_subjects = group_model_config["subjects"]
         subjects_ids_to_include = []
 
         if isinstance(custom_subjects, list):
-            # Case 1: A simple list of subject IDs (for single-group analyses)
             subjects_ids_to_include = custom_subjects
-            print(f"Using custom list of {len(subjects_ids_to_include)} subjects for analysis '{args.group_model}'.")
-
+            console.log(f"Using custom list of {len(subjects_ids_to_include)} subjects.")
         elif isinstance(custom_subjects, dict):
-            # Case 2: A dictionary mapping group names to lists of subject IDs
-            print(f"Using custom subject lists per group for analysis '{args.group_model}'.")
+            console.log(f"Using custom subject lists per group.")
             valid_groups = group_model_config.get("groups", [])
             for group_name, subject_list in custom_subjects.items():
                 if group_name not in valid_groups:
-                    print(f"Warning: Group '{group_name}' in custom subjects list is not in the main 'groups' for this analysis. Ignoring these subjects.")
                     continue
                 subjects_ids_to_include.extend(subject_list)
         
-        # Filter all subject info based on the collected custom list of IDs
         subject_id_map = {s['id']: s for s in all_subjects_info}
         for sub_id in subjects_ids_to_include:
             if sub_id in subject_id_map:
                 subjects_to_process.append(subject_id_map[sub_id])
             else:
-                print(f"Warning: Subject '{sub_id}' from custom list not found in main_config.toml. Skipping.")
+                console.log(f"[yellow]Warning:[/] Subject '{sub_id}' from custom list not found.")
 
     else:
-        # Fallback to original logic if 'subjects' field is not provided
         group_model_groups = group_model_config.get("groups")
-        print(f"No custom subject list found. Using all subjects from group(s): {group_model_groups}")
+        console.log(f"Using all subjects from group(s): {group_model_groups}")
         subjects_to_process = [s for s in all_subjects_info if s["group"] in group_model_groups]
 
     if not subjects_to_process:
-        print("Error: No subjects to process after filtering. Aborting group analysis.")
+        console.log("[red]Error:[/] No subjects to process after filtering.")
         return
     
     mask_files = []
@@ -236,10 +245,10 @@ def run_group_analysis(args, config, analysis_models):
             if os.path.exists(mask_path):
                 mask_files.append(mask_path.replace(".HEAD", ""))
             else:
-                print(f"Warning: Mask file not found, skipping: {mask_path}")
+                console.log(f"[yellow]Warning:[/] Mask file not found: {mask_path}")
     
     if not mask_files:
-        print("Error: No mask files found for any subjects. Aborting.")
+        console.log("[red]Error:[/] No mask files found.")
         return
 
     group_mask_path = os.path.join(output_dir, "group_mask")
@@ -263,19 +272,17 @@ def run_group_analysis(args, config, analysis_models):
     ]
 
     if analysis_type == "3dLMEr":
-        # --- Header Generation ---
         table_columns = group_model_config.get("table_columns", [])
         if not table_columns:
-            print(f"Error: For 3dLMEr analysis '{args.group_model}', 'table_columns' is missing in the configuration.")
+            console.log(f"[red]Error:[/] 'table_columns' is missing in config.")
             return
         header_columns = ["Subj"] + table_columns + ["InputFile"]
         header = "\t".join(header_columns) + "\n"
 
-        # --- Data Table Generation ---
         data_table_path = os.path.join(output_dir, "data_table.txt")
         
         if "data_table_rows" not in group_model_config:
-            print(f"Error: For 3dLMEr analysis '{args.group_model}', 'data_table_rows' is missing in the configuration.")
+            console.log(f"[red]Error:[/] 'data_table_rows' is missing in config.")
             return
 
         with open(data_table_path, "w") as f:
@@ -292,10 +299,9 @@ def run_group_analysis(args, config, analysis_models):
                             f"stats.{sub_info['id']}_{analysis_name}+tlrc[{contrast_name}]"
                         )
                         if not os.path.exists(stats_file.split("[")[0] + ".HEAD"):
-                            print(f"Warning: Stats file not found, skipping: {stats_file}")
+                            console.log(f"[yellow]Warning:[/] Stats file not found: {stats_file}")
                             continue
                         
-                        # --- Dynamic Row Construction ---
                         row_data = {
                             "Subj": sub_info['id'],
                             "session": f"ses-{ses_id}",
@@ -303,17 +309,14 @@ def run_group_analysis(args, config, analysis_models):
                             "InputFile": stats_file
                         }
                         
-                        # Add factors from the data_table_rows definition
                         for key, value in row_def.items():
                             if key != 'contrast':
                                 row_data[key] = value
 
-                        # Build the line in the correct order based on the header
                         line_parts = [str(row_data.get(col_name, "NA")) for col_name in header_columns]
                         line = "\t".join(line_parts) + "\n"
                         f.write(line)
         
-        # Format GLT codes
         glt_codes = " ".join([f"-gltCode {g['label']} \"{g['sym']}\"" for g in group_model_config["glt"]])
 
         command.extend([
@@ -326,7 +329,7 @@ def run_group_analysis(args, config, analysis_models):
         setA_label = group_model_config.get("setA_label")
         contrast_name = group_model_config.get("contrast")
         if not setA_label or not contrast_name:
-            print("Error: 3dttest++ requires 'setA_label' and 'contrast' in config.")
+            console.log("[red]Error:[/] 3dttest++ requires 'setA_label' and 'contrast'.")
             return
 
         setA_files = []
@@ -338,7 +341,7 @@ def run_group_analysis(args, config, analysis_models):
                     f"stats.{sub_info['id']}_{analysis_name}+tlrc[{contrast_name}]"
                 )
                 if not os.path.exists(stats_file.split("[")[0] + ".HEAD"):
-                    print(f"Warning: Stats file not found, skipping: {stats_file}")
+                    console.log(f"[yellow]Warning:[/] Stats file not found: {stats_file}")
                     continue
                 
                 setA_files.append(sub_info['id'])
@@ -349,18 +352,17 @@ def run_group_analysis(args, config, analysis_models):
             "--setA_files", " ".join(setA_files)
         ])
 
-    # --- Execute ---
     log_file_path = os.path.join("logs", f"group_analysis_{analysis_name}_{args.group_model}.log")
-    print(f"Executing group analysis. Check log for details: {log_file_path}")
+    console.log(f"[dim]Executing group analysis. See log: {log_file_path}[/]")
     
     with open(log_file_path, "w") as log_file:
         process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT, cwd=output_dir)
         process.wait()
 
     if process.returncode == 0:
-        print(f"Successfully completed group analysis. Results in: {output_dir}")
+        console.log(f"[bold green]SUCCESS:[/] Group analysis complete. Results in: {output_dir}")
     else:
-        print(f"Error running group analysis. Check log: {log_file_path}")
+        console.log(f"[bold red]ERROR:[/] Group analysis failed. Check log: {log_file_path}")
 
 
 def main():
@@ -373,14 +375,15 @@ def main():
     parser.add_argument("--n_procs", type=int, default=1, help="Number of subjects to process in parallel.")
     parser.add_argument("--group_model", help="Specify the group analysis model name to run (required for 'group_analysis' step).")
 
-
     args = parser.parse_args()
+
+    console.print(Panel(f"fMRI Analysis Pipeline\n[dim]Step: {args.step}[/]", style="bold blue"))
 
     try:
         main_config = json.loads(json.dumps(toml.load("analysis_configs/main_config.toml")))
         analysis_models = json.loads(json.dumps(toml.load("analysis_configs/analysis_models.toml")))
     except FileNotFoundError as e:
-        print(f"Error: Configuration file not found. {e}")
+        console.print(f"[bold red]Error:[/] Configuration file not found. {e}")
         return
 
     if args.step == "group_analysis":
@@ -393,38 +396,62 @@ def main():
     elif args.analysis and args.step in ["glm", "all"]:
         first_analysis = args.analysis[0]
         model = analysis_models.get(first_analysis, {})
-        # Use subjects defined in the model, or fall back to all subjects from main_config
         if "subjects" in model: 
             subjects_to_process_ids = model["subjects"]
-        else: # Fallback to global subjects if not specified in analysis model
+        else:
             subjects_to_process_ids = [s["id"] for s in main_config.get("subjects", [])]
     else:
         subjects_to_process_ids = [s["id"] for s in main_config.get("subjects", [])]
 
     if not subjects_to_process_ids:
-        print("No subjects found to process. Check your configuration and command-line arguments.")
+        console.print("[yellow]No subjects found to process. Check your configuration.[/]")
         return
 
-    # Validate analysis model existence before starting parallel jobs
     if args.analysis:
         for analysis_name in args.analysis:
             if analysis_name not in analysis_models:
-                print(f"Error: Analysis model '{analysis_name}' not found in analysis_configs/analysis_models.toml. Aborting.")
+                console.print(f"[bold red]Error:[/] Analysis model '{analysis_name}' not found.")
                 return
     
-    print(f"Processing subjects: { ', '.join(subjects_to_process_ids)}")
-    print(f"Number of parallel processes: {args.n_procs}")
+    console.print(f"Processing [bold cyan]{len(subjects_to_process_ids)}[/] subjects.")
+    
+    # Using Rich Progress Bar
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        
+        main_task = progress.add_task("[green]Overall Progress", total=len(subjects_to_process_ids))
+        
+        if args.n_procs > 1 and len(subjects_to_process_ids) > 1:
+            # We can't update rich progress easily from subprocesses without a Manager, 
+            # so for parallel processing, we might lose the granular progress bar updates per subject
+            # unless we use something like rich.progress.track for the main loop only.
+            # For simplicity in this implementation, if n_procs > 1, we just run the loop but lose the detailed
+            # inside-function progress updates, or we switch to sequential if we want pretty bars.
+            # Let's keep it sequential for the rich demo if the user didn't ask for massive parallel speed,
+            # OR we can just wrap the executor map.
+            
+            console.log(f"[yellow]Parallel processing with {args.n_procs} cores enabled. Detailed progress bars might be simplified.[/]")
+            
+            worker_func = partial(process_subject, args=args, main_config=main_config, analysis_models=analysis_models, progress=None, task_id=None)
+            
+            with ProcessPoolExecutor(max_workers=args.n_procs) as executor:
+                # We map the function and manually update the main bar as they finish
+                futures = [executor.submit(worker_func, sub_id) for sub_id in subjects_to_process_ids]
+                for future in futures:
+                    future.result() # Wait for each
+                    progress.update(main_task, advance=1)
+        else:
+            # Sequential processing allows us to pass the progress object down
+            for subject_id in subjects_to_process_ids:
+                process_subject(subject_id, args, main_config, analysis_models, progress, main_task)
 
-    worker_func = partial(process_subject, args=args, main_config=main_config, analysis_models=analysis_models)
-
-    if args.n_procs > 1 and len(subjects_to_process_ids) > 1:
-        with ProcessPoolExecutor(max_workers=args.n_procs) as executor:
-            list(executor.map(worker_func, subjects_to_process_ids))
-    else:
-        for subject_id in subjects_to_process_ids:
-            worker_func(subject_id)
-
-    print("--- All processing complete ---")
+    console.print(Panel("[bold green]All processing complete[/]", style="green"))
 
 if __name__ == "__main__":
     main()

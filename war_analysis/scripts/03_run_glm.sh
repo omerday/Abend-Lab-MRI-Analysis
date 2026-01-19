@@ -5,6 +5,12 @@
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
+# Get the directory where the script is located
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+# Source the color utility script
+source "${SCRIPT_DIR}/utils_colors.sh"
+
 # Default values
 SUBJECT=""
 SESSION="1"
@@ -20,13 +26,13 @@ while [[ "$#" -gt 0 ]]; do
         --input) INPUT_DIR="$2"; shift 2;;
         --output) OUTPUT_DIR="$2"; shift 2;;
         --analysis) ANALYSIS_NAME="$2"; shift 2;;
-        *) echo "Unknown option: $1" >&2; exit 1;;
+        *) log_error "Unknown option: $1"; exit 1;;
     esac
 done
 
 # Validate required arguments
 if [ -z "$SUBJECT" ] || [ -z "$SESSION" ] || [ -z "$INPUT_DIR" ] || [ -z "$OUTPUT_DIR" ] || [ -z "$ANALYSIS_NAME" ]; then
-    echo "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir> --analysis <name>" >&2
+    log_error "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir> --analysis <name>"
     exit 1
 fi
 
@@ -70,11 +76,11 @@ while IFS= read -r line; do
 done <<< "$(echo "$MODEL_CONFIG" | grep -A 2 'glt')"
 
 
-echo "--- Starting GLM Analysis (${ANALYSIS_NAME}) for ${SUBJECT}, ${SESSION_PREFIX} ---"
+print_header "Starting GLM Analysis (${ANALYSIS_NAME}) for ${SUBJECT}, ${SESSION_PREFIX}"
 
 # Clean up previous output directory
 if [ -d "$GLM_OUTPUT_DIR" ]; then
-    echo "Found existing GLM folder, deleting it: ${GLM_OUTPUT_DIR}"
+    log_warn "Found existing GLM folder, deleting it: ${GLM_OUTPUT_DIR}"
     rm -rf "$GLM_OUTPUT_DIR"
 fi
 
@@ -111,9 +117,9 @@ afni_proc.py \
     -remove_preproc_files \
     -execute
 
-echo "--- GLM Analysis for ${SUBJECT} Complete ---"
+log_success "GLM Analysis for ${SUBJECT} Complete"
 
-echo "--- Exporting QC images using @chauffeur_afni ---"
+print_subheader "Exporting QC images using @chauffeur_afni"
 QC_DIR="QC"
 mkdir -p "$QC_DIR"
 

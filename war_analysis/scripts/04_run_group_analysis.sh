@@ -5,6 +5,12 @@
 
 set -ex # Exit immediately if a command exits with a non-zero status.
 
+# Get the directory where the script is located
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+# Source the color utility script
+source "${SCRIPT_DIR}/utils_colors.sh"
+
 # Default values
 ANALYSIS_TYPE=""
 OUTPUT_PREFIX=""
@@ -26,37 +32,37 @@ while [[ "$#" -gt 0 ]]; do
         --glt_codes) GLT_CODES="$2"; shift 2;; 
         --setA_label) SET_A_LABEL="$2"; shift 2;; 
         --setA_files) SET_A_FILES="$2"; shift 2;; 
-        *) echo "Unknown option: $1"; exit 1;; 
+        *) log_error "Unknown option: $1"; exit 1;; 
     esac
 done
 
-echo "Starting from path `pwd`"
+log_info "Starting from path `pwd`"
 
 # Validate required arguments
 if [ -z "$ANALYSIS_TYPE" ] || [ -z "$OUTPUT_PREFIX" ] || [ -z "$MASK" ]; then
-    echo "Usage: $0 --type <type> --output_prefix <prefix> --mask <file> [options]"
+    log_error "Usage: $0 --type <type> --output_prefix <prefix> --mask <file> [options]"
     exit 1
 fi
 
 # Find the MNI template. Assume it's in the parent directory of the project.
 MNI_TEMPLATE=$(find .. -name "MNI152_2009_template.nii.gz" | head -n 1)
 if [ -z "$MNI_TEMPLATE" ]; then
-    echo "Error: MNI152_2009_template.nii.gz not found." >&2
+    log_error "MNI152_2009_template.nii.gz not found."
     exit 1
 fi
 
-echo "--- Starting Group Analysis: ${OUTPUT_PREFIX} ---"
-echo "Analysis Type: ${ANALYSIS_TYPE}"
+print_header "Starting Group Analysis: ${OUTPUT_PREFIX}"
+log_info "Analysis Type: ${ANALYSIS_TYPE}"
 
 # Run analysis based on type
 if [ "$ANALYSIS_TYPE" == "3dLMEr" ]; then
     if [ -z "$DATA_TABLE_FILE" ] || [ -z "$MODEL" ]; then
-        echo "Error: --data_table and --model are required for 3dLMEr."
+        log_error "--data_table and --model are required for 3dLMEr."
         exit 1
     fi
     
-    echo "Model: ${MODEL}"
-    echo "Data Table: ${DATA_TABLE_FILE}"
+    log_info "Model: ${MODEL}"
+    log_info "Data Table: ${DATA_TABLE_FILE}"
 
     CMD="3dLMEr -prefix \"$OUTPUT_PREFIX\" \
         -mask \"$MASK\" \
@@ -66,28 +72,28 @@ if [ "$ANALYSIS_TYPE" == "3dLMEr" ]; then
         -dataTable @\"$DATA_TABLE_FILE\" \
         -resid \"${OUTPUT_PREFIX}_resid\""
 
-    echo "Executing: $CMD"
+    log_info "Executing: $CMD"
     if [ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]; then
-        echo "Output dataset ${OUTPUT_PREFIX}+tlrc.HEAD already exists. Skipping 3dLMEr execution."
+        log_warn "Output dataset ${OUTPUT_PREFIX}+tlrc.HEAD already exists. Skipping 3dLMEr execution."
     else
         eval $CMD
     fi
     
     if [ $? -eq 0 ]; then
-        echo "--- Running ClustSim Correction ---"
+        print_subheader "Running ClustSim Correction"
         RESID_FILE="${OUTPUT_PREFIX}_resid+tlrc"
         
         if [ -f "${RESID_FILE}.HEAD" ]; then
              # Calculate ACF parameters
-             echo "Calculating ACF parameters..."
+             log_info "Calculating ACF parameters..."
              ACF_PARAMS=$(3dFWHMx -mask "$MASK" -input "$RESID_FILE" -acf NULL | tail -n 1)
-             echo "ACF Params: $ACF_PARAMS"
+             log_info "ACF Params: $ACF_PARAMS"
              
              # Extract a, b, c (first 3 values)
              # The output might have 4 values (a, b, c, FWHM). We need the first 3.
              read -r a b c fwhm <<< "$ACF_PARAMS"
              
-             echo "Running 3dClustSim with ACF: $a $b $c"
+             log_info "Running 3dClustSim with ACF: $a $b $c"
              3dClustSim -mask "$MASK" -acf $a $b $c -both -prefix "${OUTPUT_PREFIX}_ClustSim"
              
              CMD_FILE="${OUTPUT_PREFIX}_ClustSim.cmd"
@@ -96,13 +102,13 @@ if [ "$ANALYSIS_TYPE" == "3dLMEr" ]; then
              if [ ! -f "$CMD_FILE" ]; then
                  OUTPUT_DIR=$(dirname "$OUTPUT_PREFIX")
                  if [ -f "${OUTPUT_DIR}/3dClustSim.cmd" ]; then
-                     echo "Found generic 3dClustSim.cmd, renaming to match prefix..."
+                     log_warn "Found generic 3dClustSim.cmd, renaming to match prefix..."
                      mv "${OUTPUT_DIR}/3dClustSim.cmd" "${CMD_FILE}"
                  fi
              fi
 
              if [ -f "${CMD_FILE}" ]; then
-                 echo "Attaching ClustSim tables to output..."
+                 log_info "Attaching ClustSim tables to output..."
                  # 3dClustSim.cmd contains the 3drefit command but lacks the dataset argument.
                  # We read the command and append the dataset.
                  CLUSTSIM_CMD=$(cat "${CMD_FILE}")
@@ -111,19 +117,19 @@ if [ "$ANALYSIS_TYPE" == "3dLMEr" ]; then
                  # Clean up ClustSim intermediate files
                 #  rm "${OUTPUT_PREFIX}_ClustSim"*
              else
-                 echo "Error: 3dClustSim failed to generate .cmd file."
+                 log_error "3dClustSim failed to generate .cmd file."
              fi
              
              # Clean up residuals to save space (optional, but recommended for large analyses)
              # rm "${RESID_FILE}"* 
         else
-             echo "Warning: Residual file not found. Skipping ClustSim."
+             log_warn "Residual file not found. Skipping ClustSim."
         fi
     fi
 
 elif [ "$ANALYSIS_TYPE" == "3dttest++" ]; then
     if [ -z "$SET_A_LABEL" ] || [ -z "$SET_A_FILES" ]; then
-        echo "Error: --setA_label and --setA_files are required for 3dttest++."
+        log_error "--setA_label and --setA_files are required for 3dttest++."
         exit 1
     fi
 
@@ -132,13 +138,13 @@ elif [ "$ANALYSIS_TYPE" == "3dttest++" ]; then
         -setA "$SET_A_LABEL" ${SET_A_FILES}
 
 else
-    echo "Error: Unknown analysis type '${ANALYSIS_TYPE}'"
+    log_error "Unknown analysis type '${ANALYSIS_TYPE}'"
     exit 1
 fi
 
-echo "--- Group Analysis Complete. Output: ${OUTPUT_PREFIX}+tlrc ---"
+log_success "Group Analysis Complete. Output: ${OUTPUT_PREFIX}+tlrc"
 
-echo "--- Generating report images with @chauffeur_afni ---"
+print_subheader "Generating report images with @chauffeur_afni"
 CHAUFFEUR_DIR="${OUTPUT_PREFIX}_images"
 mkdir -p "$CHAUFFEUR_DIR"
 
@@ -196,7 +202,7 @@ if [ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]; then
             # Fallback if INTEN_LABEL was empty or just spaces
             if [ -z "$SAFE_NAME" ]; then SAFE_NAME=$(echo "$STAT_LABEL" | tr ' :' '__'); fi
 
-            echo "Generating image for: $SAFE_NAME ($STAT_LABEL)"
+            log_info "Generating image for: $SAFE_NAME ($STAT_LABEL)"
             
             set +e # Don't exit on single image failure
             @chauffeur_afni \
@@ -226,7 +232,7 @@ if [ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]; then
         fi
     done
 else
-    echo "Warning: Output dataset ${OUTPUT_PREFIX}+tlrc.HEAD not found."
+    log_warn "Output dataset ${OUTPUT_PREFIX}+tlrc.HEAD not found."
 fi
 
-echo "--- Script Finished ---"
+log_success "Script Finished"
