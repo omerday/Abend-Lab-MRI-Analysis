@@ -15,9 +15,11 @@ basis = "BLOCK(22,1)"
 requires_scr = false
 glt = [
     { sym = "neg_blck - neut_blck", label = "neg-neut_blck" },
-    { sym = "neg_blck - rest", label = "neg_blck-rest" },
     { sym = "pos_blck - neut_blck", label = "pos-neut_blck" },
-    { sym = "neg_blck - pos_blck", label = "neg-pos_blck" }
+    { sym = "neg_blck - pos_blck", label = "neg-pos_blck" },
+    { sym = "neg_blck - rest", label = "neg_blck-rest" },
+    { sym = "pos_blck - rest", label = "pos_blck-rest" },
+    { sym = "neut_blck - rest", label = "neut_blck-rest" }
 ]
 
 [by_image]
@@ -33,9 +35,11 @@ basis = "GAM(8.6,.547,2)"
 requires_scr = false
 glt = [
     { sym = "neg_img - neut_img", label = "neg-neut_img" },
-    { sym = "neg_img - rest", label = "neg_img-rest" },
     { sym = "pos_img - neut_img", label = "pos-neut_img" },
-    { sym = "neg_img - pos_img", label = "neg-pos_img" }
+    { sym = "neg_img - pos_img", label = "neg-pos_img" },
+    { sym = "neg_img - rest", label = "neg_img-rest" },
+    { sym = "pos_img - rest", label = "pos_img-rest" },
+    { sym = "neut_img - rest", label = "neut_img-rest" }
 ]
 
 # --- Model: by_scr_bins ---
