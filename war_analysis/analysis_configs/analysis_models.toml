@@ -31,7 +31,7 @@ stim_files = [
     "timings/rest.1D"
 ]
 stim_labels = ["neg_img", "pos_img", "neut_img", "rest"]
-basis = "GAM(8.6,.547,2)"
+basis = "GAM(8.6,.547,1)"
 requires_scr = false
 glt = [
     { sym = "neg_img - neut_img", label = "neg-neut_img" },
