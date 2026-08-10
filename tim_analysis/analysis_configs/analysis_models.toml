@@ -49,6 +49,18 @@ glt = []
 regressor = "SCR#1_Coef"
 label = "PAIN"
 
+# --- Model: Post Pain by SCR ---
+# Pain period amplitude modulated by SCR.
+[post_pain_by_scr]
+description = "Post pain period (rating) amplitude modulated by SCR."
+stim_files = ["timings/post_pain_scr_amp.1D"]
+stim_labels = ["SCR"]
+basis = "BLOCK(4,1)"
+glt = []
+[post_pain_by_scr.group_analysis]
+regressor = "SCR#1_Coef"
+label = "POST_PAIN"
+
 # --- Model: Anticipation by SCR ---
 # Anticipation period amplitude modulated by SCR.
 [anticipation_by_scr]
