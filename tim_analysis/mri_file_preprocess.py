@@ -134,7 +134,7 @@ if os.path.exists("./T1"):
             print(f"Renaming file to {new_name}")
             os.rename(f"{anat_path}/{file}", f"{anat_path}/{new_name}")
 else:
-    print("No T1 files to process. Moving on.")
+    print("❗️ No T1 files to process. Moving on.")
 
 # Handle ANATOMY files
 if os.path.exists("./ANATOMY"):
@@ -236,7 +236,7 @@ for tim_run in range(1, runs + 1):
                 print(f"Renaming file to {new_name}")
                 os.rename(f"{func_path}/{file}", f"{func_path}/{new_name}")
     else:
-        print(f"WARNING - No TIM scans of run {tim_run} to process. Moving on.")
+        print(f"❗️ WARNING - No TIM scans of run {tim_run} to process. Moving on.")
 
 # Prepare log files
 print("Preparing event_onset files")
@@ -247,7 +247,7 @@ for current_file in os.listdir():
         if match:
             run_number = int(match.group(1))
         else:
-            print(f"Could not find block number in {current_file}. Skipping.")
+            print(f"❗️ Could not find block number in {current_file}. Skipping.")
             continue
         df = pd.read_csv(current_file, delimiter='\t')
         df.drop("Unnamed: 0", axis=1, inplace=True)
@@ -264,7 +264,7 @@ for current_file in os.listdir():
         df = pd.read_csv(current_file)
         pain_ratings = df["Pain"]
 if pain_ratings is None:
-    print("WARNING - No pain ratings found. Quitting.")
+    print("❗️ WARNING - No pain ratings found. Quitting.")
 
 for file in os.listdir(f"."):
     if file.endswith("_era_2s.txt"):
@@ -273,14 +273,20 @@ for file in os.listdir(f"."):
                                                       events_path=f"./{session}/func",
                                                       output_path=f"./{session}/func",
                                                       blocks=runs)
-        
-    if file.endswith("_era_4s.txt"):
+
         print(f"Handling file {file} for pain SCR amplification")
         era_to_timing.get_pain_scr_timing_file(era_path=f"./{file}",
-                                               events_path=f"./{session}/func",
-                                               output_path=f"./{session}/func",
-                                               blocks=runs,
-                                               pain_ratings=pain_ratings)
+                                                events_path=f"./{session}/func",
+                                                output_path=f"./{session}/func",
+                                                blocks=runs,
+                                                pain_ratings=pain_ratings)
+
+        print(f"Handling file {file} for post pain SCR amplification")
+        era_to_timing.get_pain_rating_scr_timing_file(era_path=f"./{file}",
+                                                events_path=f"./{session}/func",
+                                                output_path=f"./{session}/func",
+                                                blocks=runs,
+                                                pain_ratings=pain_ratings)
 
 if era_path:
     os.chdir("..")

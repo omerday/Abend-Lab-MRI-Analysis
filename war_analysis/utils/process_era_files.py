@@ -92,7 +92,6 @@ def process_binned_era(era_path: str, events_path="./", output_path="./", blocks
         block_df = era_df.iloc[df_len - (3 * 11 * 3 * (blocks - i + 1)):df_len - (3 * 11 * 3 * (blocks - i))]
 
         for event in BLOCK_START_EVENTS:
-            print(f"Processing event {event}...")
             timings = []
             for time in timing_df[timing_df["Biopac"] == event]["Time"]:
                 for j in range(11):
@@ -106,7 +105,6 @@ def process_binned_era(era_path: str, events_path="./", output_path="./", blocks
                             "Time": timings,
                             "Amplitude": amp}
             
-            print(f"Adding new records to aggregated DF...")
             aggregated_df = pd.concat([aggregated_df, pd.DataFrame(new_records)])
 
         new_timing_name = f"{output_path}/binned_scr_run-{i}.txt".replace('//','/')
