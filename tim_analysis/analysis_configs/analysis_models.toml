@@ -1,4 +1,3 @@
-
 # Definitions for each analysis model (GLM variation).
 # Each model is represented as a TOML table.
 
@@ -16,6 +15,7 @@ stim_files = [
 ]
 stim_labels = ["low_pre_pain", "med_pre_pain", "high_pre_pain", "green_square", "yellow_square", "red_square"]
 basis = "BLOCK(3,1)"
+requires_scr = false
 glt = [
     { sym = "high_pre_pain -low_pre_pain", label = "high-low-pain" },
     { sym = "high_pre_pain -med_pre_pain", label = "high-med-pain" },
@@ -32,10 +32,18 @@ description = "Pain period amplitude modulated by subjective rating."
 stim_files = ["timings/pain_rating_amp.1D"]
 stim_labels = ["PAIN"]
 basis = "BLOCK(4,1)"
+stim_types = "AM2"
+requires_scr = false
 glt = []
-[pain_by_rating.group_analysis]
-regressor = "PAIN#1_Coef"
-label = "PAIN"
+
+[[pain_by_rating.group_analyses]]
+name = "pain_by_rating"
+type = "3dttest++"
+description = "One-sample t-test for pain modulated by rating."
+groups = ["TIM"]
+sessions = [1]
+contrast = "PAIN#1_Coef"
+setA_label = "PAIN"
 
 # --- Model: Pain by SCR ---
 # Pain period amplitude modulated by SCR.
@@ -44,22 +52,38 @@ description = "Pain period amplitude modulated by SCR."
 stim_files = ["timings/pain_scr_amp.1D"]
 stim_labels = ["SCR"]
 basis = "BLOCK(4,1)"
+stim_types = "AM2"
+requires_scr = true
 glt = []
-[pain_by_scr.group_analysis]
-regressor = "SCR#1_Coef"
-label = "PAIN"
+
+[[pain_by_scr.group_analyses]]
+name = "pain_by_scr"
+type = "3dttest++"
+description = "One-sample t-test for pain modulated by SCR."
+groups = ["TIM"]
+sessions = [1]
+contrast = "SCR#1_Coef"
+setA_label = "PAIN"
 
 # --- Model: Post Pain by SCR ---
-# Pain period amplitude modulated by SCR.
+# Post pain period (rating) amplitude modulated by SCR.
 [post_pain_by_scr]
 description = "Post pain period (rating) amplitude modulated by SCR."
 stim_files = ["timings/post_pain_scr_amp.1D"]
 stim_labels = ["SCR"]
 basis = "BLOCK(4,1)"
+stim_types = "AM2"
+requires_scr = true
 glt = []
-[post_pain_by_scr.group_analysis]
-regressor = "SCR#1_Coef"
-label = "POST_PAIN"
+
+[[post_pain_by_scr.group_analyses]]
+name = "post_pain_by_scr"
+type = "3dttest++"
+description = "One-sample t-test for post pain (rating) modulated by SCR."
+groups = ["TIM"]
+sessions = [1]
+contrast = "SCR#1_Coef"
+setA_label = "POST_PAIN"
 
 # --- Model: Anticipation by SCR ---
 # Anticipation period amplitude modulated by SCR.
@@ -68,10 +92,18 @@ description = "Anticipation period amplitude modulated by SCR."
 stim_files = ["timings/anticipation_scr_amp.1D"]
 stim_labels = ["SCR"]
 basis = "BLOCK(2,1)"
+stim_types = "AM2"
+requires_scr = true
 glt = []
-[anticipation_by_scr.group_analysis]
-regressor = "SCR#1_Coef"
-label = "ANTICIPATION"
+
+[[anticipation_by_scr.group_analyses]]
+name = "anticipation_by_scr"
+type = "3dttest++"
+description = "One-sample t-test for anticipation modulated by SCR."
+groups = ["TIM"]
+sessions = [1]
+contrast = "SCR#1_Coef"
+setA_label = "ANTICIPATION"
 
 # --- Model: Anticipation amplitude by bins ---
 # Anticipation period amplitude modulated by 1,2,3,4,5 (bins)
@@ -80,10 +112,18 @@ description = "Anticipation period amplitude modulated by 1,2,3,4,5 (bins)."
 stim_files = ["timings/anticipation_1234_amp.1D"]
 stim_labels = ["SCR"]
 basis = "BLOCK(2,1)"
+stim_types = "AM2"
+requires_scr = false
 glt = []
-[anticipation_amplitude_by_bins.group_analysis]
-regressor = "SCR#1_Coef"
-label = "ANTICIPATION"
+
+[[anticipation_amplitude_by_bins.group_analyses]]
+name = "anticipation_amplitude_by_bins"
+type = "3dttest++"
+description = "One-sample t-test for anticipation amplitude modulated by bins."
+groups = ["TIM"]
+sessions = [1]
+contrast = "SCR#1_Coef"
+setA_label = "ANTICIPATION"
 
 # --- Model: Square onset amplitude by Heat Level ---
 # Amplitude modulated by heat level.
@@ -91,7 +131,9 @@ label = "ANTICIPATION"
 description = "Square onset event, amplitude modulated by heat level."
 stim_files = ["timings/amp_square_onset.1D"]
 stim_labels = ["square_onset"]
-basis = "BLOCK(2,1)" # Default, can be overridden
+basis = "BLOCK(2,1)"
+stim_types = "AM2"
+requires_scr = false
 glt = []
 
 # --- Model: Pre-pain amplitude by Heat Level ---
@@ -100,7 +142,9 @@ glt = []
 description = "Pre-pain event (last bin), amplitude modulated by heat level."
 stim_files = ["timings/amp_pre_pain.1D"]
 stim_labels = ["pre_pain"]
-basis = "BLOCK(2,1)" # Default, can be overridden
+basis = "BLOCK(2,1)"
+stim_types = "AM2"
+requires_scr = false
 glt = []
 
 # --- Model: pain amplitude by Heat Level ---
@@ -109,5 +153,7 @@ glt = []
 description = "Pain event, amplitude modulated by heat level."
 stim_files = ["timings/amp_pain.1D"]
 stim_labels = ["pain"]
-basis = "BLOCK(4,1)" # Default, can be overridden
+basis = "BLOCK(4,1)"
+stim_types = "AM2"
+requires_scr = false
 glt = []

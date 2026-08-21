@@ -111,28 +111,39 @@ for i in $(seq 1 $RUNS); do
     # These source files (e.g., anticipation_scr_amplitude_run-i.txt) are assumed to exist.
     [ -f anticipation_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 - lag_val"*"$3}' anticipation_scr_amplitude_run-${i}.txt > timings/anticipation_scr_amp_run-${i}.txt
     [ -f timings/anticipation_scr_amp_run-${i}.txt ] && echo `cat timings/anticipation_scr_amp_run-${i}.txt` >> timings/anticipation_scr_amp.1D
+    rm timings/anticipation_scr_amp_run-*.txt
 
     [ -f anticipation_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print ($2 - lag_val) "*" ($1 % 10)}' anticipation_scr_amplitude_run-${i}.txt > timings/anticipation_1234_amp_run-${i}.txt
     [ -f timings/anticipation_1234_amp_run-${i}.txt ] && echo `cat timings/anticipation_1234_amp_run-${i}.txt` >> timings/anticipation_1234_amp.1D
+    rm timings/anticipation_1234*.txt
 
     [ -f pain_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 - lag_val"*"$3}' pain_scr_amplitude_run-${i}.txt > timings/pain_scr_amp_run-${i}.txt
     [ -f timings/pain_scr_amp_run-${i}.txt ] && echo `cat timings/pain_scr_amp_run-${i}.txt` >> timings/pain_scr_amp.1D
+    rm timings/pain_scr_amp_run-*.txt
 
     [ -f pain_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 - lag_val"*"$4}' pain_scr_amplitude_run-${i}.txt > timings/pain_rating_amp_run-${i}.txt
     [ -f timings/pain_rating_amp_run-${i}.txt ] && echo `cat timings/pain_rating_amp_run-${i}.txt` >> timings/pain_rating_amp.1D
+    rm timings/pain_rating_amp_run-*.txt
 
-    [ -f post_pain_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 - lag_val"*"$4}' post_pain_scr_amplitude_run-${i}.txt > timings/post_pain_rating_amp_run-${i}.txt
-    [ -f timings/post_pain_rating_amp_run-${i}.txt ] && echo `cat timings/post_pain_rating_amp_run-${i}.txt` >> timings/post_pain_rating_amp.1D
+    [ -f post_pain_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 - lag_val"*"$3}' post_pain_scr_amplitude_run-${i}.txt > timings/post_pain_scr_amp_run-${i}.txt
+    [ -f timings/post_pain_scr_amp_run-${i}.txt ] && echo `cat timings/post_pain_scr_amp_run-${i}.txt` >> timings/post_pain_scr_amp.1D
+    rm timings/post_pain_scr_amp_run-*.txt
 done
 
 # Now convert to AFNI format using timing_tool.py
 cd timings
 timing_tool.py -fsl_timing_files low_temp_pre_pain*.txt -write_timing low_temp_pre_pain.1D
+rm low_temp_pre_pain*.txt
 timing_tool.py -fsl_timing_files med_temp_pre_pain*.txt -write_timing med_temp_pre_pain.1D
+rm med_temp_pre_pain*.txt
 timing_tool.py -fsl_timing_files high_temp_pre_pain*.txt -write_timing high_temp_pre_pain.1D
+rm high_temp_pre_pain*.txt
 
 timing_tool.py -fsl_timing_files green_square_onset*.txt -write_timing green_square_onset.1D
+rm green_square_onset*.txt
 timing_tool.py -fsl_timing_files yellow_square_onset*.txt -write_timing yellow_square_onset.1D
+rm yellow_square_onset*.txt
 timing_tool.py -fsl_timing_files red_square_onset*.txt -write_timing red_square_onset.1D
+rm red_square_onset*.txt
 
 echo "--- Onset Conversion for ${SUBJECT} Complete ---"

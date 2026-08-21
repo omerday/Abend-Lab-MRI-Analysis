@@ -177,36 +177,36 @@ def main():
         print(f"Error: Configuration file not found. {e}")
         return
 
-    # Use output_dir from config if not provided in args
     output_dir = args.output_dir if args.output_dir else main_config.get("output_dir")
-
     if not output_dir:
         print("Error: output_dir not specified in args or config.")
         return
 
-    # Iterate over all subjects in config
-    for subject_id in main_config.get("all_subjects", []):
-        print(f"--- Processing subject: {subject_id} ---")
+    subjects_configs = main_config.get("subjects")
+    if not subjects_configs and "all_subjects" in main_config:
+        subjects_configs = [{"id": s, "group": "TIM", "sessions": [{"id": 1}]} for s in main_config["all_subjects"]]
 
-        subject_folder = os.path.join(output_dir, subject_id)
-        if not os.path.isdir(subject_folder):
-             print(f"  Subject folder not found: {subject_folder}")
-             continue
+    if not subjects_configs:
+        print("No subjects found in configuration.")
+        return
 
-        # Find sessions
-        session_folders = sorted(glob.glob(os.path.join(subject_folder, 'ses-*')))
-        if not session_folders:
-            print(f"  No sessions found for {subject_id}")
-            continue
+    for subject_config in subjects_configs:
+        subject_id = subject_config["id"]
+        subject_group = subject_config.get("group", "N/A")
+        print(f"--- Processing subject: {subject_id} (Group: {subject_group}) ---")
 
-        for session_folder in session_folders:
-            session_id = os.path.basename(session_folder)
+        for session_config in subject_config.get("sessions", [{"id": 1}]):
+            session_id = f"ses-{session_config['id']}"
             print(f"  - Processing session: {session_id} -")
+
+            session_folder = os.path.join(output_dir, subject_id, session_id)
+            if not os.path.isdir(session_folder):
+                continue
 
             dest_folder = os.path.join(args.dropbox_dir, subject_id, session_id)
             os.makedirs(dest_folder, exist_ok=True)
             
-            subject_info_str = f"Subject: {subject_id} | Session: {session_id}"
+            subject_info_str = f"Subject: {subject_id} | Session: {session_id} | Group: {subject_group}"
 
             html_path = os.path.join(session_folder, "func_preproc", f"{subject_id}_preproc.results", f"QC_{subject_id}_preproc", "index.html")
             if os.path.exists(html_path):

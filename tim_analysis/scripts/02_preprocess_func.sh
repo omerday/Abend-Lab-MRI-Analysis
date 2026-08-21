@@ -1,10 +1,15 @@
 #!/bin/bash
 
 # --- Script: 02_preprocess_func.sh ---
-# Description: Runs functional preprocessing using afni_proc.py.
-# Date: 2025-09-16
+# Description: Runs functional preprocessing using afni_proc.py, creating analysis-ready datasets.
 
 set -e # Exit immediately if a command exits with a non-zero status.
+
+# Get the directory where the script is located
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+# Source the color utility script
+source "${SCRIPT_DIR}/utils_colors.sh"
 
 # Default values
 SUBJECT=""
@@ -16,48 +21,37 @@ RUNS=5 # Default number of runs
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
-        --subject)
-            SUBJECT="$2"
-            shift 2
-            ;; 
-        --session)
-            SESSION="$2"
-            shift 2
-            ;; 
-        --input)
-            INPUT_DIR="$2"
-            shift 2
-            ;; 
-        --output)
-            OUTPUT_DIR="$2"
-            shift 2
-            ;; 
-        --runs)
-            RUNS="$2"
-            shift 2
-            ;; 
-        *)
-            echo "Unknown option: $1" >&2
-            exit 1
-            ;; 
+        --subject) SUBJECT="$2"; shift 2;; 
+        --session) SESSION="$2"; shift 2;; 
+        --input) INPUT_DIR="$2"; shift 2;; 
+        --output) OUTPUT_DIR="$2"; shift 2;; 
+        --runs) RUNS="$2"; shift 2;; 
+        *) log_error "Unknown option: $1"; exit 1;; 
     esac
 done
 
 # Validate required arguments
 if [ -z "$SUBJECT" ] || [ -z "$SESSION" ] || [ -z "$INPUT_DIR" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir> [--runs <N>]" >&2
+    log_error "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir> [--runs <N>]"
     exit 1
 fi
 
 SESSION_PREFIX="ses-${SESSION}"
 ANAT_WARPED_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/anat_warped"
-FUNC_PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func/preproc"
+FUNC_PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc"
 
-echo "--- Starting Functional Preprocessing for ${SUBJECT}, ${SESSION_PREFIX} ---"
+# Find the MNI template
+MNI_TEMPLATE=$(find "${INPUT_DIR}/.." -name "MNI152_2009_template.nii.gz" | head -n 1)
+if [ -z "$MNI_TEMPLATE" ]; then
+    log_error "MNI152_2009_template.nii.gz not found."
+    exit 1
+fi
+
+print_header "Starting Functional Preprocessing for ${SUBJECT}, ${SESSION_PREFIX}"
 
 # Clean up previous output directory
 if [ -d "$FUNC_PREPROC_DIR" ]; then
-    echo "Found existing preproc folder, deleting it: ${FUNC_PREPROC_DIR}"
+    log_warn "Found existing func_preproc folder, deleting it: ${FUNC_PREPROC_DIR}"
     rm -rf "$FUNC_PREPROC_DIR"
 fi
 
@@ -74,6 +68,7 @@ for i in $(seq 1 $RUNS); do
         ${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func/${SUBJECT}_${SESSION_PREFIX}_task-tim_run-${i}_echo-3_bold.nii.gz "
 done
 
+log_info "Running afni_proc.py..."
 afni_proc.py \
     -subj_id "${SUBJECT}_preproc" \
     ${DSETS} \
@@ -81,7 +76,7 @@ afni_proc.py \
     -copy_anat "${ANAT_WARPED_DIR}/anatSS.${SUBJECT}.nii" \
     -anat_has_skull no \
     -anat_follower anat_w_skull anat "${ANAT_WARPED_DIR}/anatU.${SUBJECT}.nii" \
-    -blocks tshift align tlrc volreg mask combine blur scale regress\
+    -blocks tshift align tlrc volreg mask combine blur scale regress \
     -html_review_style pythonic \
     -align_unifize_epi local \
     -align_opts_aea -cost lpc+ZZ -giant_move -check_flip \
@@ -93,30 +88,12 @@ afni_proc.py \
     -mask_segment_anat yes \
     -combine_method OC \
     -blur_size 4 \
-    -tlrc_base MNI152_2009_template.nii.gz \
+    -tlrc_base "$MNI_TEMPLATE" \
     -tlrc_NL_warp \
     -tlrc_NL_warped_dsets \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.nii" \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.aff12.1D" \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}_WARP.nii" \
-    -html_review_style pythonic \
     -execute
 
-echo "--- Converting QC report to PDF and copying to Dropbox ---"
-python /home/user/Documents/Abend-Lab-MRI-Analysis/tim_analysis/convert_qc_to_pdf.py
-
-PDF_SOURCE="./${SUBJECT}_preproc.results/QC_${SUBJECT}_preproc/index.pdf"
-PDF_DEST_NAME="${SUBJECT}_${SESSION_PREFIX}_func_preproc_qc.pdf"
-DROPBOX_PATH=~/Dropbox
-
-if [ -d "$DROPBOX_PATH" ]; then
-    if [ -f "$PDF_SOURCE" ]; then
-        cp "${PDF_SOURCE}" "${DROPBOX_PATH}/${PDF_DEST_NAME}"
-    else
-        echo "WARNING: PDF file not found at ${PDF_SOURCE}. Skipping copy."
-    fi
-else
-    echo "WARNING: Dropbox directory not found at ${DROPBOX_PATH}. Skipping copy."
-fi
-
-echo "--- Functional Preprocessing for ${SUBJECT} Complete ---"
+log_success "Functional Preprocessing for ${SUBJECT} Complete"
