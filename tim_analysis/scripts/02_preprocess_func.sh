@@ -41,7 +41,7 @@ ANAT_WARPED_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/anat_warped"
 FUNC_PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc"
 
 # Find the MNI template
-MNI_TEMPLATE=$(find "${INPUT_DIR}/.." -name "MNI152_2009_template.nii.gz" | head -n 1)
+MNI_TEMPLATE="${SCRIPT_DIR}/../MNI152_2009_template.nii.gz"
 if [ -z "$MNI_TEMPLATE" ]; then
     log_error "MNI152_2009_template.nii.gz not found."
     exit 1
@@ -94,6 +94,9 @@ afni_proc.py \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.nii" \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.aff12.1D" \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}_WARP.nii" \
+    -regress_motion_per_run \
+    -regress_censor_motion 0.5 \
+    -regress_censor_outliers 0.05 \
     -execute
 
 log_success "Functional Preprocessing for ${SUBJECT} Complete"

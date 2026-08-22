@@ -71,6 +71,5 @@ sswarper2 \
     -giant_move \
     -cost_nl_final lpa \
     -minp 8 \
-    -deoblique_refitly
 
 log_success "Anatomical Preprocessing for ${SUBJECT} Complete"

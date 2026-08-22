@@ -18,6 +18,13 @@ sessions = [
 ]
 
 [[subjects]]
+id = "sub-473"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
 id = "sub-489"
 group = "TIM"
 sessions = [
@@ -144,6 +151,13 @@ sessions = [
 ]
 
 [[subjects]]
+id = "sub-518"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
 id = "sub-519"
 group = "TIM"
 sessions = [
@@ -193,27 +207,165 @@ sessions = [
 ]
 
 [[subjects]]
-id = "sub-669"
-group = "TIM"
-sessions = [
-  { id = 1, has_scr = true }
-]
-
-[[subjects]]
 id = "sub-682"
 group = "TIM"
 sessions = [
   { id = 1, has_scr = true }
 ]
 
+[[subjects]]
+id = "sub-694"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-708"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-709"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-721"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-732"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-733"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-749"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-750"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-752"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-767"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-768"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-780"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-781"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-786"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-787"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-788"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-789"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-791"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-806"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
+id = "sub-832"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
 # Default list of all subjects (kept for backward compatibility)
-all_subjects = ["sub-489", "sub-499", "sub-500", "sub-502", 
+all_subjects = ["sub-435", "sub-473", "sub-489", "sub-499", "sub-500", "sub-502", 
                 "sub-503", "sub-504", "sub-505", "sub-506", 
                 "sub-507", "sub-508", "sub-509", "sub-510", 
                 "sub-511", "sub-512", "sub-513", "sub-514", 
-                "sub-515", "sub-516", "sub-519", "sub-608",
+                "sub-515", "sub-516", "sub-518", "sub-519", "sub-604", "sub-608",
                 "sub-619", "sub-620", "sub-625", "sub-638",
-                "sub-649", "sub-669", "sub-682"]
+                "sub-649", "sub-682", "sub-694", "sub-708",
+                "sub-709", "sub-721", "sub-732", "sub-733",
+                "sub-749", "sub-750", "sub-752", "sub-767",
+                "sub-768", "sub-780", "sub-781", "sub-786",
+                "sub-787", "sub-788", "sub-789", "sub-791",
+                "sub-806", "sub-832"]
 
 # --- AFNI Parameters ---
 # Default parameters used across most analyses.
