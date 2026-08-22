@@ -7,6 +7,12 @@ input_dir = "/home/user/Documents/TIM/Pilot/Input"
 # Absolute path to the directory where all outputs (derivatives) will be saved.
 output_dir = "/media/user/PortableSSD/TIM/Output"
 
+# Fast local scratch directory for intermediate computation (NVMe / internal SSD).
+scratch_dir = "/tmp/afni_scratch"
+
+# Automatically delete local scratch files for a subject once synced to output_dir
+cleanup_scratch = true
+
 # --- Subjects ---
 # List of subjects to be processed.
 # Each subject can have multiple sessions, each with its own specific parameters.
