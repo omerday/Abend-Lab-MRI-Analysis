@@ -72,10 +72,12 @@ Now open your bot in Telegram and send `/start` or `/status`. You should see the
 ### Running Permanently in Background (`systemd`):
 To keep the bot running 24/7 (surviving reboots and auto-restarting if it crashes):
 
-1. Edit `remote_monitor/mri_bot.service` to verify the `User` and `WorkingDirectory` paths match your Linux account:
+1. Edit `remote_monitor/mri_bot.service` to verify `User`, `WorkingDirectory`, and `ExecStart` match your Python environment:
+   Run `which python3` in your active terminal (e.g. miniconda: `/home/user/miniconda3/bin/python3`):
    ```ini
    User=user
    WorkingDirectory=/home/user/Documents/Abend-Lab-MRI-Analysis
+   ExecStart=/home/user/miniconda3/bin/python3 -m remote_monitor.bot
    ```
 2. Copy the unit file and enable the service:
    ```bash

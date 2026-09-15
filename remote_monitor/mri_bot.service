@@ -8,14 +8,18 @@ Type=simple
 # Update the User and WorkingDirectory to match your Linux PC username and path:
 User=user
 WorkingDirectory=/home/user/Documents/Abend-Lab-MRI-Analysis
-ExecStart=/usr/bin/python3 -m remote_monitor.bot
+# Use the python binary where python-telegram-bot was installed.
+# If using miniconda: /home/user/miniconda3/bin/python3
+# Run `which python3` in your active terminal to find the exact path.
+ExecStart=/home/user/miniconda3/bin/python3 -m remote_monitor.bot
 
 # Auto-restart on failure or machine reboot
 Restart=always
 RestartSec=10
 
-# Environment variables (optional if bot_config.toml is used)
+# Environment variables
 Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/user/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 
 [Install]
 WantedBy=multi-user.target
