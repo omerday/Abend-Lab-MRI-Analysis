@@ -1,0 +1,41 @@
+# Configuration Template for Abend Lab MRI Remote Monitor Bot
+# Copy this file to "bot_config.toml" and fill in your details:
+#   cp bot_config.template.toml bot_config.toml
+
+[telegram]
+# Bot token received from @BotFather on Telegram (e.g., "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ")
+bot_token = "YOUR_TELEGRAM_BOT_TOKEN"
+
+# List of authorized numeric Telegram User IDs (obtained by messaging @userinfobot on Telegram).
+# ONLY users in this list can interact with the bot. Unauthorized users are blocked.
+allowed_user_ids = [
+    123456789
+]
+
+[pipelines]
+# Base directory for the repository.
+# If omitted or empty, it will automatically detect the parent directory of remote_monitor.
+repo_root = ""
+
+# Default pipeline if not specified ("tim" or "war")
+default_pipeline = "tim"
+
+# Extra storage mount paths to monitor for remaining disk space.
+# Useful for monitoring the external portable SSD where MRI derivatives are saved.
+monitored_storage_paths = [
+    "/",
+    "/media/user/PortableSSD"
+]
+
+[notifications]
+# Automatically send @chauffeur_afni PNG montages upon subject completion
+auto_upload_chauffeur = true
+
+# Maximum number of chauffeur images to attach per subject in milestone alerts (Telegram photo album limit is 10)
+max_chauffeur_images = 6
+
+# Automatically send preproc QC PDF upon completion
+auto_upload_qc_pdf = true
+
+# Check interval in seconds for background batch milestone updates
+poll_interval_seconds = 15

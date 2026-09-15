@@ -1,2 +1,6 @@
 tim_analysis/logs/*
 war_analysis/logs/*
+bot_config.toml
+remote_monitor/bot_config.toml
+__pycache__/
+*.pyc

@@ -1,0 +1,21 @@
+[Unit]
+Description=Abend Lab fMRI Remote Monitor Telegram Bot Daemon
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Update the User and WorkingDirectory to match your Linux PC username and path:
+User=user
+WorkingDirectory=/home/user/Documents/Abend-Lab-MRI-Analysis
+ExecStart=/usr/bin/python3 -m remote_monitor.bot
+
+# Auto-restart on failure or machine reboot
+Restart=always
+RestartSec=10
+
+# Environment variables (optional if bot_config.toml is used)
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
