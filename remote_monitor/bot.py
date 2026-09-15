@@ -2,11 +2,13 @@
 """
 Abend Lab MRI Analysis - Telegram Bot Daemon
 Provides remote monitoring, QA inspection, and execution control from a smartphone.
+Uses HTML formatting and robust escaping to prevent entity parse errors.
 """
 
 import os
 import sys
 import glob
+import html
 import logging
 import asyncio
 from typing import List, Dict, Any, Optional
@@ -36,6 +38,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("MriRemoteBot")
 
+def h(text: Any) -> str:
+    """HTML escape helper for safe Telegram message formatting."""
+    return html.escape(str(text)) if text is not None else ""
+
 # Helper to verify authorization
 def is_authorized(update: Update) -> bool:
     user = update.effective_user
@@ -53,6 +59,8 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+SUBJECTS_PER_PAGE = 12
+
 # -------------------------------------------------------------------------
 # Command Handlers
 # -------------------------------------------------------------------------
@@ -60,29 +68,32 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start and /help commands."""
     if not is_authorized(update):
-        await update.message.reply_text("⛔ *Unauthorized Access*\nYour Telegram user ID is not authorized to control this server.", parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(
+            "⛔ <b>Unauthorized Access</b>\nYour Telegram user ID is not authorized to control this server.", 
+            parse_mode=ParseMode.HTML
+        )
         return
 
     welcome_text = (
-        "🧠 *Abend Lab fMRI Remote Bot*\n"
+        "🧠 <b>Abend Lab fMRI Remote Bot</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "Welcome! Use this bot to monitor analyses, review QA images, and control batch jobs while away.\n\n"
-        "*Quick Commands:*\n"
-        "• `/status` — View system resources, active jobs, and recent log states.\n"
-        "• `/run` — Launch single or multi-subject batch jobs with interactive menus.\n"
-        "• `/qa` — Inspect `@chauffeur_afni` axial montage PNGs and QC PDFs.\n"
-        "• `/logs` — Read live log tails from recent runs.\n"
-        "• `/kill` — Cancel an active running batch.\n\n"
-        "_Tip: You can also use the touch buttons below on your phone screen._"
+        "<b>Quick Commands:</b>\n"
+        "• <code>/status</code> — View system resources, active jobs, and recent log states.\n"
+        "• <code>/run</code> — Launch single or multi-subject batch jobs with interactive menus.\n"
+        "• <code>/qa</code> — Inspect <code>@chauffeur_afni</code> axial montage PNGs and QC PDFs.\n"
+        "• <code>/logs</code> — Read live log tails from recent runs.\n"
+        "• <code>/kill</code> — Cancel an active running batch.\n\n"
+        "<i>Tip: You can also use the touch buttons below on your phone screen.</i>"
     )
-    await update.message.reply_markdown(welcome_text, reply_markup=MAIN_KEYBOARD)
+    await update.message.reply_text(welcome_text, reply_markup=MAIN_KEYBOARD, parse_mode=ParseMode.HTML)
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Generate and send system metrics, active AFNI jobs, and batch status."""
     if not is_authorized(update): return
 
-    msg_parts = ["🧠 *Abend Lab System & Pipeline Status*\n━━━━━━━━━━━━━━━━━━━━━━━━━━"]
+    msg_parts = ["<b>🧠 Abend Lab System &amp; Pipeline Status</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━"]
 
     # 1. Active Batch Job (if launched through bot)
     tracker = pipeline_manager.active_batch
@@ -93,67 +104,65 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bar = "█" * filled + "░" * (bar_len - filled)
         
         msg_parts.append(
-            f"🔄 *Active Batch:* `{tracker.pipeline.upper()}` ({tracker.step})\n"
-            f"⏱️ Elapsed: *{tracker.formatted_elapsed}* | Cores: *{tracker.n_procs}*\n"
-            f"📈 Progress: `[{bar}]` *{pct}%* ({tracker.completed_count}/{len(tracker.subjects)} Subjects)\n"
+            f"🔄 <b>Active Batch:</b> <code>{h(tracker.pipeline.upper())}</code> ({h(tracker.step)})\n"
+            f"⏱️ Elapsed: <b>{h(tracker.formatted_elapsed)}</b> | Cores: <b>{tracker.n_procs}</b>\n"
+            f"📈 Progress: <code>[{bar}]</code> <b>{pct}%</b> ({tracker.completed_count}/{len(tracker.subjects)} Subjects)\n"
         )
         
-        # Breakdown of subjects
         running_subs = [s for s, st in tracker.subject_states.items() if st["status"] == "RUNNING"]
         queued_subs = [s for s, st in tracker.subject_states.items() if st["status"] == "QUEUED"]
         success_subs = [s for s, st in tracker.subject_states.items() if st["status"] == "SUCCESS"]
         failed_subs = [s for s, st in tracker.subject_states.items() if st["status"] == "FAILED"]
 
         if running_subs:
-            msg_parts.append("⚡ *Currently Processing:*")
+            msg_parts.append("⚡ <b>Currently Processing:</b>")
             for s in running_subs[:4]:
                 st = tracker.subject_states[s]
-                msg_parts.append(f"• `{s}`: ⏳ _{st['current_step']}_")
+                msg_parts.append(f"• <code>{h(s)}</code>: ⏳ <i>{h(st['current_step'])}</i>")
         
         if failed_subs:
-            msg_parts.append(f"❌ *Failed:* {', '.join([f'`{s}`' for s in failed_subs])}")
+            msg_parts.append(f"❌ <b>Failed:</b> {', '.join([f'<code>{h(s)}</code>' for s in failed_subs])}")
         
         if success_subs:
-            msg_parts.append(f"✅ *Completed:* {len(success_subs)} subjects")
+            msg_parts.append(f"✅ <b>Completed:</b> {len(success_subs)} subjects")
 
         msg_parts.append("")
     else:
         # Check if AFNI / Python processes are running in terminal
         active_procs = get_active_afni_processes()
         if active_procs:
-            msg_parts.append(f"⚙️ *Running Processes ({len(active_procs)} active):*")
+            msg_parts.append(f"⚙️ <b>Running Processes ({len(active_procs)} active):</b>")
             for p in active_procs[:5]:
-                sub_label = f"[{p['subject']}] " if p['subject'] else ""
-                msg_parts.append(f"• `{p['name']}` (PID {p['pid']}): {sub_label}_{p['keyword']}_ ({p['elapsed']})")
+                sub_label = f"[{h(p['subject'])}] " if p['subject'] else ""
+                msg_parts.append(f"• <code>{h(p['name'])}</code> (PID {p['pid']}): {sub_label}<i>{h(p['keyword'])}</i> ({h(p['elapsed'])})")
             msg_parts.append("")
         else:
-            msg_parts.append("💤 *No active analyses currently running.*\n")
+            msg_parts.append("💤 <i>No active analyses currently running.</i>\n")
 
     # 2. System Hardware Metrics
     metrics = get_system_metrics(config.monitored_storage_paths)
     msg_parts.append(
-        f"💻 *Host Resources:*\n"
-        f"• CPU: *{metrics['cpu_percent']}%* | RAM: *{metrics['ram_used']}* / {metrics['ram_total']} (*{metrics['ram_percent']}%*)"
+        f"💻 <b>Host Resources:</b>\n"
+        f"• CPU: <b>{metrics['cpu_percent']}%</b> | RAM: <b>{metrics['ram_used']}</b> / {metrics['ram_total']} (<b>{metrics['ram_percent']}%</b>)"
     )
     for d in metrics["disks"]:
-        msg_parts.append(f"• Storage (`{d['path']}`): *{d['free']} free* ({d['percent_used']}% used)")
+        msg_parts.append(f"• Storage (<code>{h(d['path'])}</code>): <b>{h(d['free'])} free</b> ({d['percent_used']}% used)")
     msg_parts.append("")
 
     # 3. Recent Logs
     logs = get_recent_logs(config.repo_root, limit=5)
     if logs:
-        msg_parts.append("📋 *Recent Log Runs:*")
+        msg_parts.append("📋 <b>Recent Log Runs:</b>")
         for l in logs:
-            msg_parts.append(f"{l['icon']} `{l['subject']}` ({l['pipeline']}) — _{l['modified_time']}_\n   └ {l['last_line']}")
+            msg_parts.append(f"{l['icon']} <code>{h(l['subject'])}</code> ({h(l['pipeline'])}) — <i>{h(l['modified_time'])}</i>\n   └ <code>{h(l['last_line'])}</code>")
 
-    await update.message.reply_markdown("\n".join(msg_parts))
+    await update.message.reply_text("\n".join(msg_parts), parse_mode=ParseMode.HTML)
 
 
 # -------------------------------------------------------------------------
 # Interactive Run Wizard Handlers
 # -------------------------------------------------------------------------
 
-# State cache for interactive wizard: user_id -> dict
 WIZARD_STATE: Dict[int, Dict[str, Any]] = {}
 
 async def run_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -161,12 +170,10 @@ async def run_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update): return
 
     args = context.args
-    # If arguments provided directly, e.g. /run tim glm --subjects sub-500,sub-502 --analysis pain_by_rating --n_procs 2
     if args and len(args) >= 2:
         await launch_from_cli_args(update, context, args)
         return
 
-    # Otherwise open interactive wizard
     user_id = update.effective_user.id
     WIZARD_STATE[user_id] = {
         "pipeline": config.default_pipeline,
@@ -183,8 +190,9 @@ async def run_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("⚔️ WAR Task", callback_data="wiz|pipe|war"),
         ]
     ]
-    await update.message.reply_markdown(
-        "🚀 *Launch Analysis Wizard*\nStep 1/5: Select which pipeline to run:",
+    await update.message.reply_text(
+        "🚀 <b>Launch Analysis Wizard</b>\nStep 1/5: Select which pipeline to run:",
+        parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -232,15 +240,16 @@ async def launch_from_cli_args(update: Update, context: ContextTypes.DEFAULT_TYP
             on_subject_milestone=lambda t, s, st: handle_subject_milestone(context.bot, t, s, st),
             on_batch_complete=lambda t: handle_batch_complete(context.bot, t),
         )
-        await update.message.reply_markdown(
-            f"🚀 *Batch Dispatched Successfully!*\n"
-            f"• Pipeline: `{pipeline.upper()}` | Step: `{step}`\n"
-            f"• Subjects: *{len(tracker.subjects)} subjects* | Parallel Cores: *{n_procs}*\n"
-            f"• PID: `{tracker.process.pid}`\n\n"
-            f"_You will receive real-time notifications as each subject finishes or if any step encounters errors._"
+        await update.message.reply_text(
+            f"🚀 <b>Batch Dispatched Successfully!</b>\n"
+            f"• Pipeline: <code>{h(pipeline.upper())}</code> | Step: <code>{h(step)}</code>\n"
+            f"• Subjects: <b>{len(tracker.subjects)} subjects</b> | Cores: <b>{n_procs}</b>\n"
+            f"• PID: <code>{tracker.process.pid}</code>\n\n"
+            f"<i>You will receive real-time notifications as each subject finishes.</i>",
+            parse_mode=ParseMode.HTML
         )
     except Exception as e:
-        await update.message.reply_markdown(f"❌ *Failed to start batch:*\n`{e}`")
+        await update.message.reply_text(f"❌ <b>Failed to start batch:</b>\n<code>{h(e)}</code>", parse_mode=ParseMode.HTML)
 
 
 async def wizard_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -264,8 +273,8 @@ async def wizard_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             [InlineKeyboardButton("Create Timings", callback_data="wiz|step|create_timings"), InlineKeyboardButton("Full Preprocess", callback_data="wiz|step|preprocess")],
         ]
         await query.edit_message_text(
-            f"Selected Pipeline: *{state['pipeline'].upper()}*\n\nStep 2/5: Select processing step:",
-            parse_mode=ParseMode.MARKDOWN,
+            f"Selected Pipeline: <b>{h(state['pipeline'].upper())}</b>\n\nStep 2/5: Select processing step:",
+            parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -281,8 +290,8 @@ async def wizard_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             [InlineKeyboardButton("Failed Subjects Only", callback_data="wiz|scope|failed")],
         ]
         await query.edit_message_text(
-            f"Step: *{state['step']}*\n\nStep 3/5: Select subject scope:",
-            parse_mode=ParseMode.MARKDOWN,
+            f"Step: <b>{h(state['step'])}</b>\n\nStep 3/5: Select subject scope:",
+            parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -297,8 +306,7 @@ async def wizard_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         elif scope == "single":
             state["subjects"] = [p_info["subjects"][0]] if p_info["subjects"] else ["sub-001"]
         elif scope == "failed":
-            # Auto-detect failed logs
-            recent = get_recent_logs(config.repo_root, limit=20)
+            recent = get_recent_logs(config.repo_root, limit=25)
             failed = list(set([r["subject"] for r in recent if r["status"] == "FAILED" and r["pipeline"] == state["pipeline"]]))
             state["subjects"] = failed if failed else (p_info["subjects"][:3])
 
@@ -315,12 +323,11 @@ async def wizard_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             keyboard.append([InlineKeyboardButton("All Models", callback_data="wiz|model|all")])
 
             await query.edit_message_text(
-                f"Subjects: *{len(state['subjects'])} selected*\n\nStep 4/5: Select Analysis Model:",
-                parse_mode=ParseMode.MARKDOWN,
+                f"Subjects: <b>{len(state['subjects'])} selected</b>\n\nStep 4/5: Select Analysis Model:",
+                parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         else:
-            # Skip directly to cores
             await show_cores_selection(query, state)
 
     # --- Step 4: Model Selected -> Select Cores ---
@@ -343,16 +350,16 @@ async def wizard_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             ]
         ]
         summary = (
-            "📋 *Review Execution Plan*\n"
+            "📋 <b>Review Execution Plan</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"• Pipeline: `{state['pipeline'].upper()}`\n"
-            f"• Processing Step: `{state['step']}`\n"
-            f"• Subjects: *{len(state['subjects'])} subjects* (`{', '.join(state['subjects'][:4])}{'...' if len(state['subjects']) > 4 else ''}`)\n"
-            f"• Analysis Model: `{', '.join(state.get('analysis', [])) or 'Default'}`\n"
-            f"• Parallel Cores (`--n_procs`): *{state['n_procs']}*\n\n"
+            f"• Pipeline: <code>{h(state['pipeline'].upper())}</code>\n"
+            f"• Processing Step: <code>{h(state['step'])}</code>\n"
+            f"• Subjects: <b>{len(state['subjects'])} subjects</b> (<code>{', '.join([h(s) for s in state['subjects'][:4]])}{'...' if len(state['subjects']) > 4 else ''}</code>)\n"
+            f"• Analysis Model: <code>{', '.join([h(a) for a in state.get('analysis', [])]) or 'Default'}</code>\n"
+            f"• Parallel Cores (<code>--n_procs</code>): <b>{state['n_procs']}</b>\n\n"
             "Are you ready to start this run?"
         )
-        await query.edit_message_text(summary, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(summary, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
     # --- Final Confirmation ---
     elif action == "confirm":
@@ -368,15 +375,15 @@ async def wizard_callback_handler(update: Update, context: ContextTypes.DEFAULT_
                     on_batch_complete=lambda t: handle_batch_complete(context.bot, t),
                 )
                 await query.edit_message_text(
-                    f"🚀 *Batch Started (PID {tracker.process.pid})*\n"
-                    f"Processing *{len(tracker.subjects)} subjects* across *{tracker.n_procs} cores*.\n\n"
-                    f"_You will receive milestone updates as subjects finish._",
-                    parse_mode=ParseMode.MARKDOWN
+                    f"🚀 <b>Batch Started (PID {tracker.process.pid})</b>\n"
+                    f"Processing <b>{len(tracker.subjects)} subjects</b> across <b>{tracker.n_procs} cores</b>.\n\n"
+                    f"<i>You will receive milestone updates as subjects finish.</i>",
+                    parse_mode=ParseMode.HTML
                 )
             except Exception as e:
-                await query.edit_message_text(f"❌ *Failed to start batch:*\n`{e}`", parse_mode=ParseMode.MARKDOWN)
+                await query.edit_message_text(f"❌ <b>Failed to start batch:</b>\n<code>{h(e)}</code>", parse_mode=ParseMode.HTML)
         else:
-            await query.edit_message_text("Execution cancelled.", parse_mode=ParseMode.MARKDOWN)
+            await query.edit_message_text("Execution cancelled.", parse_mode=ParseMode.HTML)
         WIZARD_STATE.pop(user_id, None)
 
 async def show_cores_selection(query, state: Dict[str, Any]):
@@ -385,8 +392,8 @@ async def show_cores_selection(query, state: Dict[str, Any]):
         [InlineKeyboardButton("4 Cores", callback_data="wiz|cores|4"), InlineKeyboardButton("8 Cores", callback_data="wiz|cores|8")],
     ]
     await query.edit_message_text(
-        f"Step 5/5: Select CPU cores (`--n_procs`):",
-        parse_mode=ParseMode.MARKDOWN,
+        "Step 5/5: Select CPU cores (<code>--n_procs</code>):",
+        parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -402,20 +409,19 @@ async def handle_subject_milestone(bot, tracker: BatchJobTracker, subject_id: st
     for chat_id in config.allowed_user_ids:
         if status == "SUCCESS":
             msg = (
-                f"✅ *Subject Finished Successfully!*\n"
-                f"• Subject: `{subject_id}` | Pipeline: `{tracker.pipeline.upper()}`\n"
-                f"• Step: `{tracker.step}` | Batch Progress: *{tracker.progress_percent}%*\n"
+                f"✅ <b>Subject Finished Successfully!</b>\n"
+                f"• Subject: <code>{h(subject_id)}</code> | Pipeline: <code>{h(tracker.pipeline.upper())}</code>\n"
+                f"• Step: <code>{h(tracker.step)}</code> | Batch Progress: <b>{tracker.progress_percent}%</b>\n"
             )
             
-            # Attach Chauffeur images if enabled
             chauffeur_imgs = state.get("chauffeur_images", [])
             keyboard = None
             if chauffeur_imgs:
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🖼️ Inspect QA", callback_data=f"view_qa|{tracker.pipeline}|{subject_id}")]
+                    [InlineKeyboardButton("🖼️ Inspect QA", callback_data=f"view_qa|{tracker.pipeline}|{subject_id}|0")]
                 ])
 
-            await bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+            await bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML, reply_markup=keyboard)
 
             if config.auto_upload_chauffeur and chauffeur_imgs:
                 selected_imgs = chauffeur_imgs[:config.max_chauffeur_images]
@@ -431,15 +437,14 @@ async def handle_subject_milestone(bot, tracker: BatchJobTracker, subject_id: st
         elif status == "FAILED":
             err_text = state.get("error_snippet") or "Check logs for details."
             msg = (
-                f"❌ *Analysis Failed for {subject_id}*\n"
-                f"• Pipeline: `{tracker.pipeline.upper()}` | Step: `{tracker.step}`\n\n"
-                f"📄 *Error Snippet:*\n```\n{err_text[:400]}\n```"
+                f"❌ <b>Analysis Failed for {h(subject_id)}</b>\n"
+                f"• Pipeline: <code>{h(tracker.pipeline.upper())}</code> | Step: <code>{h(tracker.step)}</code>\n\n"
+                f"📄 <b>Error Snippet:</b>\n<pre>{h(err_text[:400])}</pre>"
             )
-            # Inline button to retry just this subject with 1 tap
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"🔁 Retry {subject_id}", callback_data=f"retry|{tracker.pipeline}|{tracker.step}|{subject_id}|{','.join(tracker.analysis)}")]
             ])
-            await bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+            await bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML, reply_markup=keyboard)
 
 
 async def handle_batch_complete(bot, tracker: BatchJobTracker):
@@ -450,40 +455,52 @@ async def handle_batch_complete(bot, tracker: BatchJobTracker):
     
     status_icon = "🎉" if fail == 0 else "⚠️"
     msg = (
-        f"{status_icon} *Batch Run Finished!*\n"
+        f"{status_icon} <b>Batch Run Finished!</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"• Pipeline: `{tracker.pipeline.upper()}` ({tracker.step})\n"
-        f"• Total Elapsed: *{tracker.formatted_elapsed}*\n"
-        f"• Results: *{succ}/{total} Succeeded*, *{fail} Failed*\n\n"
-        f"_Use `/qa` to review images or `/status` to verify system health._"
+        f"• Pipeline: <code>{h(tracker.pipeline.upper())}</code> ({h(tracker.step)})\n"
+        f"• Total Elapsed: <b>{h(tracker.formatted_elapsed)}</b>\n"
+        f"• Results: <b>{succ}/{total} Succeeded</b>, <b>{fail} Failed</b>\n\n"
+        f"<i>Use <code>/qa</code> to review images or <code>/status</code> to verify system health.</i>"
     )
     for chat_id in config.allowed_user_ids:
-        await bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.MARKDOWN)
+        await bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML)
 
 
 # -------------------------------------------------------------------------
-# QA & Logs Inspection Handlers
+# QA Inspection with Model Selection & Group Analysis
 # -------------------------------------------------------------------------
 
 async def qa_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Allow user to inspect QA images and PDFs for any subject."""
+    """Allow user to inspect QA images and PDFs for any subject or group analysis."""
     if not is_authorized(update): return
 
     args = context.args
     if args and len(args) >= 2:
-        pipeline, subject = args[0].lower(), args[1]
-        await send_qa_artifacts_to_chat(update.effective_chat.id, context.bot, pipeline, subject)
+        pipeline, target = args[0].lower(), args[1]
+        model = args[2] if len(args) > 2 else None
+        if target.lower() == "group":
+            await send_group_qa_artifacts_to_chat(update.effective_chat.id, context.bot, pipeline, model)
+        else:
+            await send_qa_artifacts_to_chat(update.effective_chat.id, context.bot, pipeline, target, analysis=model)
         return
 
-    # Interactive QA selector
+    tim_info = pipeline_manager.get_pipeline_info("tim")
+    war_info = pipeline_manager.get_pipeline_info("war")
     keyboard = [
-        [InlineKeyboardButton("TIM Task", callback_data="qa_pick|tim"), InlineKeyboardButton("WAR Task", callback_data="qa_pick|war")]
+        [
+            InlineKeyboardButton(f"🧠 TIM: Single Subjects ({len(tim_info['subjects'])})", callback_data="qa_page|tim|0"),
+            InlineKeyboardButton("🧠 TIM: Group Analyses", callback_data="qa_group|tim"),
+        ],
+        [
+            InlineKeyboardButton(f"⚔️ WAR: Single Subjects ({len(war_info['subjects'])})", callback_data="qa_page|war|0"),
+            InlineKeyboardButton("⚔️ WAR: Group Analyses", callback_data="qa_group|war"),
+        ],
     ]
-    await update.message.reply_markdown("🖼️ *Inspect QA: Select Pipeline:*", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text("🖼️ <b>Inspect QA: Select Category</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 
 async def qa_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle QA button clicks."""
+    """Handle QA button clicks, subject pagination, model selection, and group analysis."""
     query = update.callback_query
     await query.answer()
     if not is_authorized(update): return
@@ -491,48 +508,162 @@ async def qa_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     data = query.data.split("|")
     action = data[0]
 
-    if action == "qa_pick":
+    # --- Home Menu ---
+    if action == "qa_home":
+        tim_info = pipeline_manager.get_pipeline_info("tim")
+        war_info = pipeline_manager.get_pipeline_info("war")
+        keyboard = [
+            [
+                InlineKeyboardButton(f"🧠 TIM: Single Subjects ({len(tim_info['subjects'])})", callback_data="qa_page|tim|0"),
+                InlineKeyboardButton("🧠 TIM: Group Analyses", callback_data="qa_group|tim"),
+            ],
+            [
+                InlineKeyboardButton(f"⚔️ WAR: Single Subjects ({len(war_info['subjects'])})", callback_data="qa_page|war|0"),
+                InlineKeyboardButton("⚔️ WAR: Group Analyses", callback_data="qa_group|war"),
+            ],
+        ]
+        await query.edit_message_text("🖼️ <b>Inspect QA: Select Category</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
+    # --- Subject Pagination ---
+    elif action == "qa_page":
         pipeline = data[1]
+        page = int(data[2])
         p_info = pipeline_manager.get_pipeline_info(pipeline)
-        subs = p_info["subjects"][:12] # Show top 12 subjects
-        
+        all_subs = p_info["subjects"]
+        total_subs = len(all_subs)
+
+        total_pages = max(1, (total_subs + SUBJECTS_PER_PAGE - 1) // SUBJECTS_PER_PAGE)
+        page = max(0, min(page, total_pages - 1))
+
+        start_idx = page * SUBJECTS_PER_PAGE
+        end_idx = min(start_idx + SUBJECTS_PER_PAGE, total_subs)
+        page_subs = all_subs[start_idx:end_idx]
+
         keyboard = []
         row = []
-        for s in subs:
-            row.append(InlineKeyboardButton(s, callback_data=f"view_qa|{pipeline}|{s}"))
+        for s in page_subs:
+            row.append(InlineKeyboardButton(s, callback_data=f"qa_subj_models|{pipeline}|{s}|{page}"))
             if len(row) == 3:
                 keyboard.append(row)
                 row = []
-        if row: keyboard.append(row)
+        if row:
+            keyboard.append(row)
+
+        nav_row = []
+        if page > 0:
+            nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"qa_page|{pipeline}|{page - 1}"))
+        nav_row.append(InlineKeyboardButton(f"📄 {page + 1}/{total_pages}", callback_data="qa_noop"))
+        if page < total_pages - 1:
+            nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"qa_page|{pipeline}|{page + 1}"))
+        keyboard.append(nav_row)
+
+        keyboard.append([InlineKeyboardButton("🔙 Switch Pipeline / Group", callback_data="qa_home")])
 
         await query.edit_message_text(
-            f"Select Subject for *{pipeline.upper()}* QA:",
-            parse_mode=ParseMode.MARKDOWN,
+            f"🖼️ Select Subject for <b>{h(pipeline.upper())}</b> QA (Total: {total_subs}):\n<i>Page {page + 1} of {total_pages}</i>",
+            parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    elif action == "view_qa":
+    # --- Model Selection for a Specific Subject ---
+    elif action == "qa_subj_models":
         pipeline, subject = data[1], data[2]
-        await send_qa_artifacts_to_chat(query.message.chat_id, context.bot, pipeline, subject)
+        return_page = int(data[3]) if len(data) > 3 and data[3].isdigit() else 0
+
+        models = pipeline_manager.get_subject_available_models(pipeline, subject)
+        keyboard = []
+
+        for m in models:
+            badge = f" ({m['image_count']} imgs)" if m["image_count"] > 0 else (" (PDF)" if m["pdf_count"] > 0 else "")
+            icon = "✅ " if m["has_data"] else "⚪ "
+            btn_text = f"{icon}{m['label']}{badge}"
+            keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"view_qa|{pipeline}|{subject}|{m['id']}|{return_page}")])
+
+        # All models option
+        keyboard.append([InlineKeyboardButton("🌟 All Analyses Combined", callback_data=f"view_qa|{pipeline}|{subject}|all|{return_page}")])
+        keyboard.append([InlineKeyboardButton("🔙 Back to Subjects", callback_data=f"qa_page|{pipeline}|{return_page}")])
+
+        await query.edit_message_text(
+            f"🔬 <b>Subject: {h(subject)}</b> ({h(pipeline.upper())})\nSelect which analysis model to view QA for:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    # --- Group Analysis Model Picker ---
+    elif action == "qa_group":
+        pipeline = data[1]
+        group_models = pipeline_manager.get_available_group_models(pipeline)
+        
+        keyboard = []
+        for gm in group_models:
+            badge = f" ({gm['image_count']} imgs)" if gm["image_count"] > 0 else ""
+            icon = "📊 " if gm["has_data"] else "⚪ "
+            btn_text = f"{icon}{gm['label']}{badge}"
+            keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"view_group_qa|{pipeline}|{gm['id']}")])
+
+        keyboard.append([InlineKeyboardButton("🔙 Back to Main Categories", callback_data="qa_home")])
+
+        await query.edit_message_text(
+            f"📊 <b>{h(pipeline.upper())} Group Analyses</b>\nSelect a group model to inspect statistical montages:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    # --- View Subject QA Artifacts ---
+    elif action == "view_qa":
+        pipeline, subject, model = data[1], data[2], data[3]
+        return_page = int(data[4]) if len(data) > 4 and data[4].isdigit() else 0
+        analysis_filter = None if model == "all" else model
+        await send_qa_artifacts_to_chat(query.message.chat_id, context.bot, pipeline, subject, analysis=analysis_filter, return_page=return_page)
+
+    # --- View Group QA Artifacts ---
+    elif action == "view_group_qa":
+        pipeline, group_model = data[1], data[2]
+        await send_group_qa_artifacts_to_chat(query.message.chat_id, context.bot, pipeline, group_model)
+
+    elif action == "qa_noop":
+        pass
 
 
-async def send_qa_artifacts_to_chat(chat_id: int, bot, pipeline: str, subject: str):
-    """Upload chauffeur PNGs and QC PDFs to Telegram chat."""
-    qa = pipeline_manager.find_qa_artifacts(pipeline, subject)
+async def send_qa_artifacts_to_chat(chat_id: int, bot, pipeline: str, subject: str, analysis: Optional[str] = None, return_page: int = 0):
+    """Upload chauffeur PNGs and QC PDFs for a subject with clear model captions."""
+    qa = pipeline_manager.find_qa_artifacts(pipeline, subject, analysis=analysis)
+    annotated_imgs = qa.get("annotated_images", [])
     imgs = qa["chauffeur_images"]
     pdfs = qa["qc_pdfs"]
 
+    back_keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔙 Back to Models", callback_data=f"qa_subj_models|{pipeline}|{subject}|{return_page}"),
+            InlineKeyboardButton("👥 Other Subjects", callback_data=f"qa_page|{pipeline}|{return_page}")
+        ]
+    ])
+
+    model_label = f"Model: <code>{h(analysis)}</code>" if analysis else "All Models"
+
     if not imgs and not pdfs:
-        await bot.send_message(chat_id=chat_id, text=f"No QA images or PDFs found for `{subject}` in `{pipeline}`.", parse_mode=ParseMode.MARKDOWN)
+        await bot.send_message(
+            chat_id=chat_id, 
+            text=f"No QA images or PDFs found for <code>{h(subject)}</code> ({model_label}).", 
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_keyboard
+        )
         return
 
-    await bot.send_message(chat_id=chat_id, text=f"🔍 Uploading QA artifacts for *{subject}* ({len(imgs)} images, {len(pdfs)} PDFs)...", parse_mode=ParseMode.MARKDOWN)
+    await bot.send_message(
+        chat_id=chat_id, 
+        text=f"🔍 Uploading QA artifacts for <b>{h(subject)}</b> [{model_label}] ({len(imgs)} images, {len(pdfs)} PDFs)...", 
+        parse_mode=ParseMode.HTML
+    )
 
-    # Send images in albums of up to 5
-    if imgs:
-        for i in range(0, min(len(imgs), 10), 5):
-            batch = imgs[i:i+5]
-            media = [InputMediaPhoto(open(f, 'rb'), caption=os.path.basename(f) if j == 0 else "") for j, f in enumerate(batch)]
+    # Send images in albums of up to 5 with detailed captions
+    if annotated_imgs:
+        for i in range(0, min(len(annotated_imgs), 10), 5):
+            batch = annotated_imgs[i:i+5]
+            media = []
+            for item in batch:
+                caption = f"🧠 {subject} | {item['model']}\nContrast/Stim: {item['stimulus']}"
+                media.append(InputMediaPhoto(open(item['path'], 'rb'), caption=caption))
             try:
                 await bot.send_media_group(chat_id=chat_id, media=media)
             except Exception as e:
@@ -545,6 +676,68 @@ async def send_qa_artifacts_to_chat(chat_id: int, bot, pipeline: str, subject: s
         except Exception as e:
             logger.error(f"Failed to upload PDF: {e}")
 
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"✅ Finished sending artifacts for <b>{h(subject)}</b> ({model_label}).",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_keyboard
+    )
+
+
+async def send_group_qa_artifacts_to_chat(chat_id: int, bot, pipeline: str, group_model: str):
+    """Upload group analysis statistical montages and PDFs with informative captions."""
+    qa = pipeline_manager.find_group_qa_artifacts(pipeline, group_model=group_model)
+    annotated_imgs = qa.get("annotated_images", [])
+    pdfs = qa["qc_pdfs"]
+
+    back_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back to Group Analyses", callback_data=f"qa_group|{pipeline}")]
+    ])
+
+    if not annotated_imgs and not pdfs:
+        await bot.send_message(
+            chat_id=chat_id, 
+            text=f"No group QA images found for model <code>{h(group_model)}</code> in <code>{h(pipeline.upper())}</code>.", 
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_keyboard
+        )
+        return
+
+    await bot.send_message(
+        chat_id=chat_id, 
+        text=f"📊 Uploading group statistical montages for <b>{h(group_model)}</b> ({len(annotated_imgs)} images)...", 
+        parse_mode=ParseMode.HTML
+    )
+
+    if annotated_imgs:
+        for i in range(0, min(len(annotated_imgs), 10), 5):
+            batch = annotated_imgs[i:i+5]
+            media = []
+            for item in batch:
+                caption = f"📊 Group: {group_model} ({pipeline.upper()})\nSub-brick / Contrast: {item['stimulus']}"
+                media.append(InputMediaPhoto(open(item['path'], 'rb'), caption=caption))
+            try:
+                await bot.send_media_group(chat_id=chat_id, media=media)
+            except Exception as e:
+                logger.error(f"Failed to upload group media group: {e}")
+
+    for pdf in pdfs[:2]:
+        try:
+            await bot.send_document(chat_id=chat_id, document=open(pdf, 'rb'), caption=os.path.basename(pdf))
+        except Exception as e:
+            logger.error(f"Failed to upload group PDF: {e}")
+
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"✅ Finished sending group artifacts for <b>{h(group_model)}</b>.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_keyboard
+    )
+
+
+# -------------------------------------------------------------------------
+# Logs Inspection Handlers
+# -------------------------------------------------------------------------
 
 async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tail recent logs for debugging."""
@@ -554,7 +747,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if args and len(args) >= 2:
         pipeline, subject = args[0].lower(), args[1]
         log_text = pipeline_manager.get_log_tail(pipeline, subject)
-        await update.message.reply_markdown(log_text)
+        await update.message.reply_text(f"<pre>{h(log_text)}</pre>", parse_mode=ParseMode.HTML)
         return
 
     recent = get_recent_logs(config.repo_root, limit=6)
@@ -566,7 +759,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(f"{r['icon']} {r['filename']}", callback_data=f"read_log|{r['pipeline']}|{r['subject']}")]
         for r in recent
     ]
-    await update.message.reply_markdown("📋 *Select a log file to view tail:*", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text("📋 <b>Select a log file to view tail:</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 
 async def logs_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -578,7 +771,7 @@ async def logs_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     data = query.data.split("|")
     pipeline, subject = data[1], data[2]
     log_text = pipeline_manager.get_log_tail(pipeline, subject)
-    await query.message.reply_markdown(log_text)
+    await query.message.reply_text(f"<pre>{h(log_text)}</pre>", parse_mode=ParseMode.HTML)
 
 
 async def retry_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -591,7 +784,7 @@ async def retry_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     pipeline, step, subject = data[1], data[2], data[3]
     analyses = data[4].split(",") if len(data) > 4 and data[4] else None
 
-    await query.edit_message_text(f"🔄 Re-launching `{subject}` ({step})...", parse_mode=ParseMode.MARKDOWN)
+    await query.edit_message_text(f"🔄 Re-launching <code>{h(subject)}</code> ({h(step)})...", parse_mode=ParseMode.HTML)
 
     try:
         tracker = await pipeline_manager.launch_batch(
@@ -603,9 +796,9 @@ async def retry_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
             on_subject_milestone=lambda t, s, st: handle_subject_milestone(context.bot, t, s, st),
             on_batch_complete=lambda t: handle_batch_complete(context.bot, t),
         )
-        await query.message.reply_markdown(f"🚀 Re-run started for `{subject}` (PID `{tracker.process.pid}`).")
+        await query.message.reply_text(f"🚀 Re-run started for <code>{h(subject)}</code> (PID <code>{tracker.process.pid}</code>).", parse_mode=ParseMode.HTML)
     except Exception as e:
-        await query.message.reply_markdown(f"❌ Failed to re-launch: `{e}`")
+        await query.message.reply_text(f"❌ Failed to re-launch: <code>{h(e)}</code>", parse_mode=ParseMode.HTML)
 
 
 async def kill_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -616,9 +809,9 @@ async def kill_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pid = pipeline_manager.active_batch.process.pid
         ok = pipeline_manager.kill_active_batch()
         if ok:
-            await update.message.reply_markdown(f"🛑 *Batch Terminated:* Sent termination signal to PID `{pid}`.")
+            await update.message.reply_text(f"🛑 <b>Batch Terminated:</b> Sent termination signal to PID <code>{pid}</code>.", parse_mode=ParseMode.HTML)
         else:
-            await update.message.reply_markdown(f"⚠️ *Warning:* Failed to terminate PID `{pid}`.")
+            await update.message.reply_text(f"⚠️ <b>Warning:</b> Failed to terminate PID <code>{pid}</code>.", parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text("No active batch currently managed by the bot to kill.")
 
@@ -638,6 +831,20 @@ async def text_message_router(update: Update, context: ContextTypes.DEFAULT_TYPE
         await logs_command(update, context)
     else:
         await update.message.reply_text("Type /help to see available commands.")
+
+
+async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Global exception handler to capture and log any unhandled update errors."""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    if isinstance(update, Update) and update.effective_message:
+        try:
+            err_msg = str(context.error)
+            await update.effective_message.reply_text(
+                f"⚠️ <b>An error occurred:</b>\n<code>{h(err_msg)}</code>",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            pass
 
 
 # -------------------------------------------------------------------------
@@ -662,6 +869,9 @@ def main():
 
     app = ApplicationBuilder().token(config.bot_token).build()
 
+    # Register Error Handler
+    app.add_error_handler(global_error_handler)
+
     # Register Command Handlers
     app.add_handler(CommandHandler(["start", "help"], start_command))
     app.add_handler(CommandHandler("status", status_command))
@@ -672,7 +882,7 @@ def main():
 
     # Register Callback Handlers (Inline Buttons)
     app.add_handler(CallbackQueryHandler(wizard_callback_handler, pattern=r"^wiz\|"))
-    app.add_handler(CallbackQueryHandler(qa_callback_handler, pattern=r"^(qa_pick|view_qa)\|"))
+    app.add_handler(CallbackQueryHandler(qa_callback_handler, pattern=r"^(qa_page|qa_subj_models|qa_group|qa_home|qa_noop|view_qa|view_group_qa)($|\|)"))
     app.add_handler(CallbackQueryHandler(logs_callback_handler, pattern=r"^read_log\|"))
     app.add_handler(CallbackQueryHandler(retry_callback_handler, pattern=r"^retry\|"))
 

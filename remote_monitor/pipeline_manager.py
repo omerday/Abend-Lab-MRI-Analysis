@@ -127,11 +127,91 @@ class PipelineManager:
             "group_models": group_models,
         }
 
-    def find_qa_artifacts(self, pipeline: str, subject: str, analysis: Optional[str] = None) -> Dict[str, List[str]]:
-        """Search derivatives and Dropbox directories for generated chauffeur PNGs and QC PDFs."""
+    def get_subject_available_models(self, pipeline: str, subject: str) -> List[Dict[str, Any]]:
+        """Identify which analysis models have generated results/images for this subject."""
+        info = self.get_pipeline_info(pipeline)
+        known_models = list(info["models"])
+        
+        # Discover all artifacts for this subject
+        all_artifacts = self.find_qa_artifacts(pipeline, subject, analysis=None)
+        all_imgs = all_artifacts["chauffeur_images"]
+        all_pdfs = all_artifacts["qc_pdfs"]
+
+        models_summary = []
+
+        # Check preprocessing artifacts
+        preproc_imgs = [img for img in all_imgs if "anat_warped" in img or "preproc" in img]
+        preproc_pdfs = [pdf for pdf in all_pdfs if "preproc" in pdf or "anat" in pdf]
+        models_summary.append({
+            "id": "preproc",
+            "label": "Preprocessing (Anat & Func)",
+            "image_count": len(preproc_imgs),
+            "pdf_count": len(preproc_pdfs),
+            "has_data": bool(preproc_imgs or preproc_pdfs),
+        })
+
+        # Check each known GLM model
+        for model in known_models:
+            m_imgs = [img for img in all_imgs if f"/{model}/" in img or f"_{model}/" in img or f"_{model}." in img or f"/{model}." in img]
+            m_pdfs = [pdf for pdf in all_pdfs if f"_{model}_" in pdf or f"_{model}." in pdf or f"/{model}/" in pdf]
+            models_summary.append({
+                "id": model,
+                "label": model,
+                "image_count": len(m_imgs),
+                "pdf_count": len(m_pdfs),
+                "has_data": bool(m_imgs or m_pdfs),
+            })
+
+        # Sort so models with data appear first
+        models_summary.sort(key=lambda x: (not x["has_data"], x["id"] != "preproc", x["id"]))
+        return models_summary
+
+    def get_available_group_models(self, pipeline: str) -> List[Dict[str, Any]]:
+        """Identify configured and executed group analysis models for this pipeline."""
+        info = self.get_pipeline_info(pipeline)
+        configured_group_models = list(info.get("group_models", []))
+        
+        # For TIM, group analyses are defined under models
+        if not configured_group_models and pipeline.lower() == "tim":
+            p_dir = info["directory"]
+            model_cfg_path = os.path.join(p_dir, "analysis_configs", "analysis_models.toml")
+            if os.path.exists(model_cfg_path) and load_toml is not None:
+                m_cfg = load_toml(model_cfg_path)
+                for m_name, m_val in m_cfg.items():
+                    if isinstance(m_val, dict) and "group_analysis" in m_val:
+                        configured_group_models.append(m_name)
+
+        # Also scan the filesystem for existing group analysis folders
+        output_dir = info["output_dir"]
+        discovered_models = set(configured_group_models)
+        if output_dir and os.path.isdir(os.path.join(output_dir, "group_analysis")):
+            base_ga = os.path.join(output_dir, "group_analysis")
+            for root, dirs, files in os.walk(base_ga):
+                for d in dirs:
+                    if d.startswith("sub-"): continue
+                    if d != "chauffeur_images" and not d.endswith("_images"):
+                        discovered_models.add(d)
+
+        group_list = []
+        for gm in sorted(discovered_models):
+            qa = self.find_group_qa_artifacts(pipeline, gm)
+            group_list.append({
+                "id": gm,
+                "label": gm,
+                "image_count": len(qa["chauffeur_images"]),
+                "pdf_count": len(qa["qc_pdfs"]),
+                "has_data": bool(qa["chauffeur_images"] or qa["qc_pdfs"]),
+            })
+
+        group_list.sort(key=lambda x: (not x["has_data"], x["id"]))
+        return group_list
+
+    def find_qa_artifacts(self, pipeline: str, subject: str, analysis: Optional[str] = None) -> Dict[str, Any]:
+        """Search derivatives and Dropbox directories for generated chauffeur PNGs and QC PDFs for a subject."""
         info = self.get_pipeline_info(pipeline)
         output_dir = info["output_dir"]
         p_dir = info["directory"]
+        known_models = list(info["models"])
 
         candidate_dirs = [output_dir, p_dir, os.path.expanduser("~/Dropbox")]
         chauffeur_images = []
@@ -146,11 +226,19 @@ class PipelineManager:
                 os.path.join(base, f"{subject}*", "**", "chauffeur_images", "*.png"),
                 os.path.join(base, f"{subject}*", "**", "QC", "*.png"),
                 os.path.join(base, f"{subject}*", "**", "chauffeur", "*.png"),
+                os.path.join(base, f"{subject}*", "**", "anat_warped", "*.png"),
             ]
             for pat in sub_patterns:
                 for img in glob.glob(pat, recursive=True):
-                    if analysis and analysis not in img:
-                        continue
+                    # Filter by analysis if requested
+                    if analysis:
+                        if analysis == "preproc":
+                            if "anat_warped" not in img and "preproc" not in img:
+                                continue
+                        else:
+                            if f"/{analysis}/" not in img and f"_{analysis}/" not in img and f"_{analysis}." not in img:
+                                continue
+
                     if img not in chauffeur_images:
                         chauffeur_images.append(img)
 
@@ -158,17 +246,106 @@ class PipelineManager:
             pdf_patterns = [
                 os.path.join(base, f"{subject}*", "**", "*.pdf"),
                 os.path.join(base, f"*{subject}*.pdf"),
+                os.path.join(base, f"{subject}*.pdf"),
             ]
             for pat in pdf_patterns:
                 for pdf in glob.glob(pat, recursive=True):
+                    if analysis:
+                        if analysis == "preproc":
+                            if "preproc" not in pdf and "anat" not in pdf:
+                                continue
+                        else:
+                            if f"_{analysis}_" not in pdf and f"_{analysis}." not in pdf and f"/{analysis}/" not in pdf:
+                                continue
+
                     if pdf not in qc_pdfs:
                         qc_pdfs.append(pdf)
 
         chauffeur_images.sort(key=os.path.getmtime, reverse=True)
         qc_pdfs.sort(key=os.path.getmtime, reverse=True)
 
+        # Build annotated image list
+        annotated_images = []
+        for img in chauffeur_images:
+            fname = os.path.basename(img)
+            stim = fname.replace(".png", "")
+            
+            # Detect model from path
+            detected_model = "Unknown"
+            if "anat_warped" in img or "preproc" in img:
+                detected_model = "Preprocessing"
+            else:
+                for m in known_models:
+                    if f"/{m}/" in img or f"_{m}/" in img or f"_{m}." in img:
+                        detected_model = m
+                        break
+
+            annotated_images.append({
+                "path": img,
+                "filename": fname,
+                "stimulus": stim,
+                "model": detected_model,
+            })
+
         return {
             "chauffeur_images": chauffeur_images,
+            "annotated_images": annotated_images,
+            "qc_pdfs": qc_pdfs,
+        }
+
+    def find_group_qa_artifacts(self, pipeline: str, group_model: Optional[str] = None) -> Dict[str, Any]:
+        """Search derivatives and Dropbox directories for generated group-level chauffeur PNGs and PDFs."""
+        info = self.get_pipeline_info(pipeline)
+        output_dir = info["output_dir"]
+        p_dir = info["directory"]
+
+        candidate_dirs = [output_dir, p_dir, os.path.expanduser("~/Dropbox")]
+        chauffeur_images = []
+        qc_pdfs = []
+
+        for base in candidate_dirs:
+            if not base or not os.path.isdir(base):
+                continue
+
+            patterns = [
+                os.path.join(base, "group_analysis", "**", "*.png"),
+                os.path.join(base, "**", "group_*", "**", "*.png"),
+                os.path.join(base, "**", "*_images", "*.png"),
+            ]
+            for pat in patterns:
+                for img in glob.glob(pat, recursive=True):
+                    if group_model and group_model not in img:
+                        continue
+                    if img not in chauffeur_images:
+                        chauffeur_images.append(img)
+
+            pdf_patterns = [
+                os.path.join(base, "group_analysis", "**", "*.pdf"),
+                os.path.join(base, "**", "group_*", "**", "*.pdf"),
+            ]
+            for pat in pdf_patterns:
+                for pdf in glob.glob(pat, recursive=True):
+                    if group_model and group_model not in pdf:
+                        continue
+                    if pdf not in qc_pdfs:
+                        qc_pdfs.append(pdf)
+
+        chauffeur_images.sort(key=os.path.getmtime, reverse=True)
+        qc_pdfs.sort(key=os.path.getmtime, reverse=True)
+
+        annotated_images = []
+        for img in chauffeur_images:
+            fname = os.path.basename(img)
+            annotated_images.append({
+                "path": img,
+                "filename": fname,
+                "stimulus": fname.replace(".png", ""),
+                "group_model": group_model or "Group",
+            })
+
+        return {
+            "chauffeur_images": chauffeur_images,
+            "annotated_images": annotated_images,
             "qc_pdfs": qc_pdfs,
         }
 
@@ -199,7 +376,8 @@ class PipelineManager:
             with open(target_log, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
                 tail = "".join(lines[-lines_count:]) if lines else "Log file is currently empty."
-                return f"📄 *{os.path.basename(target_log)}* (Last {min(lines_count, len(lines))} lines):\n```\n{tail}\n```"
+                header = f"📄 {os.path.basename(target_log)} (Last {min(lines_count, len(lines))} lines):\n"
+                return header + tail
         except Exception as e:
             return f"Error reading log file {target_log}: {e}"
 
