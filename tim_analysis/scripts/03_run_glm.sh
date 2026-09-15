@@ -40,40 +40,58 @@ SESSION_PREFIX="ses-${SESSION}"
 PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc/${SUBJECT}_preproc.results"
 GLM_OUTPUT_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/glm/${ANALYSIS_NAME}"
 TIMING_DIR="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func"
-CONFIG_FILE="analysis_configs/analysis_models.toml"
+if [ ! -f "$CONFIG_FILE" ]; then
+    CONFIG_FILE="${SCRIPT_DIR}/../analysis_configs/analysis_models.toml"
+fi
 
-# --- Load Model Configuration from TOML file ---
-# This uses a simple awk parser. For complex configs, a proper tool might be better.
-MODEL_CONFIG=$(awk -v model="$ANALYSIS_NAME" '/^\[/{in_model=0} $0=="["model"]"{in_model=1} in_model' "$CONFIG_FILE")
+if [ ! -f "$CONFIG_FILE" ]; then
+    log_error "Config file not found at ${CONFIG_FILE}"
+    exit 1
+fi
 
-STIM_FILES_RAW=$(echo "$MODEL_CONFIG" | awk '/stim_files = \[/{f=1;next} /]/{f=0} f' | tr -d ',"' | tr -d ' ' | paste -sd, -)
-STIM_LABELS_RAW=$(echo "$MODEL_CONFIG" | grep 'stim_labels' | sed 's/stim_labels = \[\(.*\)\]/\1/' | tr -d '"' | sed 's/ //g')
-BASIS=$(echo "$MODEL_CONFIG" | grep 'basis' | sed 's/basis = "\(.*\)"/\1/')
-STIM_TYPES=$(echo "$MODEL_CONFIG" | grep 'stim_types' | sed 's/stim_types = "\(.*\)".*/\1/')
+# --- Load Model Configuration from TOML file using Python ---
+eval "$(python3 -c "
+import toml, sys, shlex
 
-IFS=',' read -r -a STIM_FILES <<< "$STIM_FILES_RAW"
-IFS=',' read -r -a STIM_LABELS <<< "$STIM_LABELS_RAW"
+try:
+    with open('$CONFIG_FILE') as f:
+        data = toml.load(f)
+    model = data.get('$ANALYSIS_NAME')
+    if not model:
+        sys.stderr.write(f'Model $ANALYSIS_NAME not found in $CONFIG_FILE\n')
+        sys.exit(1)
+    
+    stim_files = [f'$TIMING_DIR/{s}' for s in model.get('stim_files', [])]
+    stim_labels = model.get('stim_labels', [])
+    basis = model.get('basis', '')
+    stim_types = model.get('stim_types', '')
+    
+    stim_files_str = ' '.join(shlex.quote(s) for s in stim_files)
+    stim_labels_str = ' '.join(shlex.quote(s) for s in stim_labels)
+    
+    glt_str = ''
+    for i, g in enumerate(model.get('glt', []), 1):
+        sym = g.get('sym', '')
+        label = g.get('label', '')
+        glt_str += f\"-gltsym 'SYM: {sym}' -glt_label {i} {label} \"
+    
+    print(f'STIM_PATHS=({stim_files_str})')
+    print(f'STIM_LABELS=({stim_labels_str})')
+    print(f'BASIS={shlex.quote(basis)}')
+    print(f'STIM_TYPES={shlex.quote(stim_types)}')
+    print(f'GLT_ARGS={shlex.quote(glt_str)}')
+except Exception as e:
+    sys.stderr.write(str(e) + '\n')
+    sys.exit(1)
+")"
 
-STIM_PATHS=()
-for file in "${STIM_FILES[@]}"; do
-    STIM_PATHS+=("${TIMING_DIR}/${file}")
-done
+if [ ${#STIM_PATHS[@]} -eq 0 ]; then
+    log_error "No stim_files found for model '${ANALYSIS_NAME}' in ${CONFIG_FILE}"
+    exit 1
+fi
+
 REGRESS_STIM_TIMES_ARGS=("-regress_stim_times" "${STIM_PATHS[@]}")
-
 REGRESS_STIM_LABELS_ARGS=("-regress_stim_labels" "${STIM_LABELS[@]}")
-
-# Construct GLT arguments
-GLT_ARGS=""
-i=1
-while IFS= read -r line; do
-    if [[ $line == *"sym ="* ]]; then
-        sym=$(echo "$line" | sed -e 's/.*sym = "\(.*\)".*/\1/')
-    elif [[ $line == *"label ="* ]]; then
-        label=$(echo "$line" | sed -e 's/.*label = "\(.*\)".*/\1/')
-        GLT_ARGS+="-gltsym 'SYM: ${sym}' -glt_label ${i} ${label} "
-        i=$((i+1))
-    fi
-done <<< "$(echo "$MODEL_CONFIG" | grep -A 2 'glt')"
 
 
 print_header "Starting GLM Analysis (${ANALYSIS_NAME}) for ${SUBJECT}, ${SESSION_PREFIX}"
@@ -119,6 +137,26 @@ afni_proc.py \
 
 log_success "GLM Analysis for ${SUBJECT} Complete"
 
+print_subheader "Masking statistical output for chauffeur"
+RESULTS_DIR="${SUBJECT}_${ANALYSIS_NAME}.results"
+STATS_FILE="${RESULTS_DIR}/stats.${SUBJECT}_${ANALYSIS_NAME}+tlrc"
+MASK_FILE="${PREPROC_DIR}/mask_epi_anat.${SUBJECT}_preproc+tlrc"
+MASKED_STATS_FILE="${RESULTS_DIR}/masked_stats.${SUBJECT}_${ANALYSIS_NAME}"
+
+OLAY_DATASET="${STATS_FILE}.HEAD"
+if [ -f "${MASK_FILE}.HEAD" ]; then
+    log_info "Applying brain mask ${MASK_FILE} to ${STATS_FILE}..."
+    3dcalc \
+        -a "${STATS_FILE}" \
+        -b "${MASK_FILE}" \
+        -exp 'a*b' \
+        -prefix "${MASKED_STATS_FILE}" \
+        -overwrite
+    OLAY_DATASET="${MASKED_STATS_FILE}+tlrc.HEAD"
+else
+    log_warn "Mask file not found at ${MASK_FILE}.HEAD. Proceeding with unmasked stats."
+fi
+
 print_subheader "Exporting QC images using @chauffeur_afni"
 QC_DIR="QC"
 mkdir -p "$QC_DIR"
@@ -127,7 +165,7 @@ for stim in "${STIM_LABELS[@]}"; do
     @chauffeur_afni                                             \
         -ulay               "../../func_preproc/${SUBJECT}_preproc.results/anat_final.${SUBJECT}_preproc+tlrc.HEAD"      \
         -ulay_range         0% 130%                             \
-        -olay               "${SUBJECT}_${ANALYSIS_NAME}.results/stats.${SUBJECT}_${ANALYSIS_NAME}+tlrc.HEAD"   \
+        -olay               "${OLAY_DATASET}"                   \
         -box_focus_slices   AMASK_FOCUS_ULAY                    \
         -func_range         3                                   \
         -cbar               Reds_and_Blues_Inv                  \
@@ -139,8 +177,9 @@ for stim in "${STIM_LABELS[@]}"; do
         -set_dicom_xyz      -20 -8 -16                          \
         -delta_slices       6 15 10                             \
         -opacity            5                                   \
-        -prefix             "${QC_DIR}/${stim}"             \
+        -prefix             "${QC_DIR}/${stim}"                 \
         -set_xhairs         OFF                                 \
         -montx 3 -monty 3                                       \
         -label_mode 1 -label_size 4
 done
+

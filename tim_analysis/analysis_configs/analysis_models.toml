@@ -65,6 +65,24 @@ sessions = [1]
 contrast = "SCR#1_Coef"
 setA_label = "PAIN"
 
+[pain_by_scr_BLOCK]
+description = "Pain period amplitude modulated by SCR."
+stim_files = ["timings/pain_scr_amp.1D"]
+stim_labels = ["SCR"]
+basis = "BLOCK(4,1)"
+stim_types = "AM2"
+requires_scr = true
+glt = []
+
+[pain_by_scr_TENT]
+description = "Pain period amplitude modulated by SCR."
+stim_files = ["timings/pain_scr_amp.1D"]
+stim_labels = ["SCR"]
+basis = "TENT(0,4,3)"
+stim_types = "AM2"
+requires_scr = true
+glt = []
+
 # --- Model: Post Pain by SCR ---
 # Post pain period (rating) amplitude modulated by SCR.
 [post_pain_by_scr]
