@@ -274,6 +274,7 @@ for file in os.listdir(f"."):
                                                       output_path=f"./{session}/func",
                                                       blocks=runs)
 
+    elif file.endswith("_era_4s.txt"):
         print(f"Handling file {file} for pain SCR amplification")
         era_to_timing.get_pain_scr_timing_file(era_path=f"./{file}",
                                                 events_path=f"./{session}/func",
@@ -287,9 +288,5 @@ for file in os.listdir(f"."):
                                                 output_path=f"./{session}/func",
                                                 blocks=runs,
                                                 pain_ratings=pain_ratings)
-
-if era_path:
-    os.chdir("..")
-    era_to_timing.get_anticipation_scr_timing_file(era_path, f"./{subject}/{session}/func", f"./{subject}/{session}/func", runs)
 
 print("Done!")

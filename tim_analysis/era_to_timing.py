@@ -101,7 +101,7 @@ def get_pain_rating_scr_timing_file(era_path: str, events_path="./", output_path
         timings = timing_df[timing_df["condition"].isin(VALID_PAIN_RATING_EVENTS)]["onset"]
         global_means = block_df[block_df["Event.Name"].isin(VALID_PAIN_RATING_EVENTS)]["Global.Mean"]
         cda_tonic = block_df[block_df["Event.Name"].isin(VALID_PAIN_RATING_EVENTS)]["CDA.Tonic"]
-        amp = np.round(global_means - cda_tonic, 2)
+        amp = np.round(global_means, 2)
 
         new_records = {"Event": events.values,
                         "Time": timings.values,
@@ -155,7 +155,7 @@ def get_pain_scr_timing_file(era_path: str, events_path="./", output_path="./", 
         timings = timing_df[timing_df["condition"].isin(VALID_PAIN_EVENTS)]["onset"]
         global_means = block_df[block_df["Event.Name"].isin(VALID_PAIN_EVENTS)]["Global.Mean"]
         cda_tonic = block_df[block_df["Event.Name"].isin(VALID_PAIN_EVENTS)]["CDA.Tonic"]
-        amp = np.round(global_means - cda_tonic, 2)
+        amp = np.round(global_means, 2)
 
         new_records = {"Event": events.values,
                         "Time": timings.values,
