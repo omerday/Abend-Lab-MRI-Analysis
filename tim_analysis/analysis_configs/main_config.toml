@@ -5,7 +5,7 @@
 input_dir = "/home/user/Documents/TIM/Pilot/Input"
 
 # Absolute path to the directory where all outputs (derivatives) will be saved.
-output_dir = "/media/user/PortableSSD/TIM/Output"
+output_dir = "/media/user/VERBATIM SD/TIM/Output"
 
 # Fast local scratch directory for intermediate computation (NVMe / internal SSD).
 scratch_dir = "/tmp/afni_scratch"

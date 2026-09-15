@@ -75,7 +75,7 @@ Contains global paths, subject lists, sessions, and default AFNI parameters.
 input_dir = "/home/user/Documents/TIM/Pilot/Input"
 
 # Absolute path to derivatives output directory
-output_dir = "/media/user/PortableSSD/TIM/Output"
+output_dir = "/media/user/VERBATIM SD/TIM/Output"
 
 # List of subjects
 [[subjects]]

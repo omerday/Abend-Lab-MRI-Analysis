@@ -54,7 +54,7 @@ allowed_user_ids = [
 default_pipeline = "tim"
 monitored_storage_paths = [
     "/",
-    "/media/user/PortableSSD"
+    "/media/user/VERBATIM SD"
 ]
 ```
 
@@ -99,7 +99,7 @@ Displays:
 - Active batch progress bar: `[████████░░░░░] 60% (6/10)`
 - Currently running subjects and their active step/runtime
 - Succeeded vs. failed subjects
-- Host CPU, RAM, and external storage space (`PortableSSD`)
+- Host CPU, RAM, and external storage space (`VERBATIM SD`)
 - Latest 5 log entries
 
 ### `/run` — Launch Jobs
