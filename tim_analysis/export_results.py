@@ -168,6 +168,7 @@ def main():
     parser = argparse.ArgumentParser(description="Export MRI analysis results to PDF.")
     parser.add_argument("--output_dir", help="Analysis output directory. Defaults to path in config.")
     parser.add_argument("--dropbox_dir", default=os.path.expanduser("~/Dropbox"), help="Directory to save exported PDFs.")
+    parser.add_argument("--subject", nargs="+", help="Specific subject IDs to export. If omitted, all subjects are exported.")
     args = parser.parse_args()
 
     try:
@@ -189,6 +190,13 @@ def main():
     if not subjects_configs:
         print("No subjects found in configuration.")
         return
+
+    # Filter to specific subjects if --subject flag was provided
+    if args.subject:
+        subjects_configs = [s for s in subjects_configs if s["id"] in args.subject]
+        if not subjects_configs:
+            print(f"No matching subjects found for: {args.subject}")
+            return
 
     for subject_config in subjects_configs:
         subject_id = subject_config["id"]

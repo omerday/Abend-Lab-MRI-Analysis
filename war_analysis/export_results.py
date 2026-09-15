@@ -168,6 +168,7 @@ def main():
     parser = argparse.ArgumentParser(description="Export MRI analysis results to PDF.")
     parser.add_argument("--output_dir", default="/media/user/PortableSSD/MDMA/Output", help="Analysis output directory.")
     parser.add_argument("--dropbox_dir", default=os.path.expanduser("~/Dropbox"), help="Directory to save exported PDFs.")
+    parser.add_argument("--subject", nargs="+", help="Specific subject IDs to export. If omitted, all subjects are exported.")
     args = parser.parse_args()
 
     try:
@@ -177,7 +178,16 @@ def main():
         print(f"Error: Configuration file not found. {e}")
         return
 
-    for subject_config in main_config.get("subjects", []):
+    subjects_list = main_config.get("subjects", [])
+
+    # Filter to specific subjects if --subject flag was provided
+    if args.subject:
+        subjects_list = [s for s in subjects_list if s["id"] in args.subject]
+        if not subjects_list:
+            print(f"No matching subjects found for: {args.subject}")
+            return
+
+    for subject_config in subjects_list:
         subject_id = subject_config["id"]
         subject_group = subject_config.get("group", "N/A")
         print(f"--- Processing subject: {subject_id} (Group: {subject_group}) ---")

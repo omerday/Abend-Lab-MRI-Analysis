@@ -37,5 +37,9 @@ max_chauffeur_images = 6
 # Automatically send preproc QC PDF upon completion
 auto_upload_qc_pdf = true
 
+# Automatically run export_results.py after each subject completes to generate QA report PDFs.
+# When enabled, PDF reports are generated into ~/Dropbox so they're immediately available via /qa.
+auto_export_results = true
+
 # Check interval in seconds for background batch milestone updates
 poll_interval_seconds = 15

@@ -57,6 +57,7 @@ class BotConfig:
         self.auto_upload_chauffeur: bool = notif_sec.get("auto_upload_chauffeur", True)
         self.max_chauffeur_images: int = int(notif_sec.get("max_chauffeur_images", 6))
         self.auto_upload_qc_pdf: bool = notif_sec.get("auto_upload_qc_pdf", True)
+        self.auto_export_results: bool = notif_sec.get("auto_export_results", True)
         self.poll_interval_seconds: int = int(notif_sec.get("poll_interval_seconds", 15))
 
     def _find_config_file(self, explicit_path: Optional[str]) -> Optional[str]:

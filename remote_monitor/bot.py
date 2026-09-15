@@ -82,6 +82,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• <code>/status</code> — View system resources, active jobs, and recent log states.\n"
         "• <code>/run</code> — Launch single or multi-subject batch jobs with interactive menus.\n"
         "• <code>/qa</code> — Inspect <code>@chauffeur_afni</code> axial montage PNGs and QC PDFs.\n"
+        "• <code>/export</code> — Generate QA report PDFs into <code>~/Dropbox</code> (runs automatically after each subject).\n"
         "• <code>/logs</code> — Read live log tails from recent runs.\n"
         "• <code>/kill</code> — Cancel an active running batch.\n\n"
         "<i>Tip: You can also use the touch buttons below on your phone screen.</i>"
@@ -433,6 +434,21 @@ async def handle_subject_milestone(bot, tracker: BatchJobTracker, subject_id: st
                     await bot.send_media_group(chat_id=chat_id, media=media_group)
                 except Exception as e:
                     logger.error(f"Error uploading chauffeur images for {subject_id}: {e}")
+
+            # Auto-export QA PDFs if enabled
+            if config.auto_export_results:
+                try:
+                    result = await pipeline_manager.run_export_for_subject(tracker.pipeline, subject_id)
+                    if result["success"] and result["pdf_count"] > 0:
+                        await bot.send_message(
+                            chat_id=chat_id,
+                            text=f"📄 <b>QA Reports Exported</b> for <code>{h(subject_id)}</code> ({result['pdf_count']} PDFs generated into <code>~/Dropbox</code>).",
+                            parse_mode=ParseMode.HTML,
+                        )
+                    elif not result["success"]:
+                        logger.warning(f"Auto-export failed for {subject_id}: {result['output'][:200]}")
+                except Exception as e:
+                    logger.error(f"Error running auto-export for {subject_id}: {e}")
 
         elif status == "FAILED":
             err_text = state.get("error_snippet") or "Check logs for details."
@@ -833,6 +849,149 @@ async def text_message_router(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Type /help to see available commands.")
 
 
+# -------------------------------------------------------------------------
+# Manual Export Command
+# -------------------------------------------------------------------------
+
+async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manually trigger export_results.py for a pipeline and subject(s).
+    
+    Usage:
+        /export                     → Interactive pipeline/subject picker
+        /export tim sub-001         → Export specific subject
+        /export war all             → Export all subjects for WAR pipeline
+    """
+    if not is_authorized(update): return
+
+    args = context.args
+    if args and len(args) >= 2:
+        pipeline = args[0].lower()
+        target = args[1]
+
+        await update.message.reply_text(
+            f"📄 Exporting QA reports for <code>{h(target)}</code> ({h(pipeline.upper())})...",
+            parse_mode=ParseMode.HTML
+        )
+
+        if target.lower() == "all":
+            p_info = pipeline_manager.get_pipeline_info(pipeline)
+            subjects = p_info["subjects"]
+            success_count = 0
+            fail_count = 0
+            for sub in subjects:
+                result = await pipeline_manager.run_export_for_subject(pipeline, sub)
+                if result["success"]:
+                    success_count += 1
+                else:
+                    fail_count += 1
+
+            await update.message.reply_text(
+                f"📄 <b>Batch Export Complete</b> ({h(pipeline.upper())})\n"
+                f"• ✅ Exported: <b>{success_count}</b> subjects\n"
+                f"• ❌ Failed: <b>{fail_count}</b> subjects",
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            result = await pipeline_manager.run_export_for_subject(pipeline, target)
+            if result["success"]:
+                await update.message.reply_text(
+                    f"✅ <b>Export Successful</b> for <code>{h(target)}</code> ({result['pdf_count']} PDFs).",
+                    parse_mode=ParseMode.HTML,
+                )
+            else:
+                await update.message.reply_text(
+                    f"❌ <b>Export Failed</b> for <code>{h(target)}</code>\n<pre>{h(result['output'][:500])}</pre>",
+                    parse_mode=ParseMode.HTML,
+                )
+        return
+
+    # Interactive mode: show pipeline picker
+    keyboard = [
+        [
+            InlineKeyboardButton("🧠 TIM Pipeline", callback_data="export_pick|tim"),
+            InlineKeyboardButton("⚔️ WAR Pipeline", callback_data="export_pick|war"),
+        ]
+    ]
+    await update.message.reply_text(
+        "📄 <b>Export QA Reports</b>\nSelect pipeline to generate PDF reports into <code>~/Dropbox</code>:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def export_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle export button selections."""
+    query = update.callback_query
+    await query.answer()
+    if not is_authorized(update): return
+
+    data = query.data.split("|")
+    action = data[0]
+
+    if action == "export_pick":
+        pipeline = data[1]
+        p_info = pipeline_manager.get_pipeline_info(pipeline)
+        total = len(p_info["subjects"])
+
+        keyboard = [
+            [InlineKeyboardButton(f"📦 Export All ({total} subjects)", callback_data=f"export_run|{pipeline}|all")],
+        ]
+        # Show first few subjects as individual options
+        row = []
+        for s in p_info["subjects"][:12]:
+            row.append(InlineKeyboardButton(s, callback_data=f"export_run|{pipeline}|{s}"))
+            if len(row) == 3:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+
+        await query.edit_message_text(
+            f"📄 <b>Export {h(pipeline.upper())} QA Reports</b>\nSelect subject(s) to export:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    elif action == "export_run":
+        pipeline, target = data[1], data[2]
+
+        await query.edit_message_text(
+            f"⏳ Exporting QA reports for <code>{h(target)}</code> ({h(pipeline.upper())})...",
+            parse_mode=ParseMode.HTML
+        )
+
+        if target == "all":
+            p_info = pipeline_manager.get_pipeline_info(pipeline)
+            subjects = p_info["subjects"]
+            success_count = 0
+            fail_count = 0
+            for sub in subjects:
+                result = await pipeline_manager.run_export_for_subject(pipeline, sub)
+                if result["success"]:
+                    success_count += 1
+                else:
+                    fail_count += 1
+
+            await query.message.reply_text(
+                f"📄 <b>Batch Export Complete</b> ({h(pipeline.upper())})\n"
+                f"• ✅ Exported: <b>{success_count}</b> subjects\n"
+                f"• ❌ Failed: <b>{fail_count}</b> subjects",
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            result = await pipeline_manager.run_export_for_subject(pipeline, target)
+            if result["success"]:
+                await query.message.reply_text(
+                    f"✅ <b>Export Successful</b> for <code>{h(target)}</code> ({result['pdf_count']} PDFs).",
+                    parse_mode=ParseMode.HTML,
+                )
+            else:
+                await query.message.reply_text(
+                    f"❌ <b>Export Failed</b> for <code>{h(target)}</code>\n<pre>{h(result['output'][:500])}</pre>",
+                    parse_mode=ParseMode.HTML,
+                )
+
+
 async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Global exception handler to capture and log any unhandled update errors."""
     logger.error("Exception while handling an update:", exc_info=context.error)
@@ -879,12 +1038,14 @@ def main():
     app.add_handler(CommandHandler("qa", qa_command))
     app.add_handler(CommandHandler("logs", logs_command))
     app.add_handler(CommandHandler("kill", kill_command))
+    app.add_handler(CommandHandler("export", export_command))
 
     # Register Callback Handlers (Inline Buttons)
     app.add_handler(CallbackQueryHandler(wizard_callback_handler, pattern=r"^wiz\|"))
     app.add_handler(CallbackQueryHandler(qa_callback_handler, pattern=r"^(qa_page|qa_subj_models|qa_group|qa_home|qa_noop|view_qa|view_group_qa)($|\|)"))
     app.add_handler(CallbackQueryHandler(logs_callback_handler, pattern=r"^read_log\|"))
     app.add_handler(CallbackQueryHandler(retry_callback_handler, pattern=r"^retry\|"))
+    app.add_handler(CallbackQueryHandler(export_callback_handler, pattern=r"^export_(pick|run)\|"))
 
     # Register Text Message Router (Main Keyboard Buttons)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_router))

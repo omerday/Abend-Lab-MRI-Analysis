@@ -563,6 +563,40 @@ class PipelineManager:
                     except Exception as e:
                         print(f"[Error in on_subject_milestone for {subject_id}]: {e}")
 
+    async def run_export_for_subject(self, pipeline: str, subject: str) -> Dict[str, Any]:
+        """Run export_results.py for a specific subject, generating QA PDFs into ~/Dropbox.
+        
+        Returns a dict with 'success' (bool), 'pdf_count' (int), and 'output' (str).
+        """
+        p_dir = config.get_pipeline_dir(pipeline)
+        export_script = os.path.join(p_dir, "export_results.py")
+
+        if not os.path.exists(export_script):
+            return {"success": False, "pdf_count": 0, "output": f"export_results.py not found in {p_dir}"}
+
+        cmd = ["python3", "export_results.py", "--subject", subject]
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=p_dir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout_bytes, _ = await process.communicate()
+            output_text = stdout_bytes.decode("utf-8", errors="ignore") if stdout_bytes else ""
+
+            # Count generated PDFs from the output
+            pdf_count = output_text.lower().count("success")
+
+            return {
+                "success": process.returncode == 0,
+                "pdf_count": pdf_count,
+                "output": output_text,
+            }
+        except Exception as e:
+            return {"success": False, "pdf_count": 0, "output": str(e)}
+
     def kill_active_batch(self) -> bool:
         """Terminate active batch execution."""
         if not self.active_batch or not self.active_batch.is_running:
