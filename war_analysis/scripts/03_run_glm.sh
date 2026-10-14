@@ -69,17 +69,19 @@ try:
     stim_files_str = ' '.join(shlex.quote(s) for s in stim_files)
     stim_labels_str = ' '.join(shlex.quote(s) for s in stim_labels)
     
-    glt_str = ''
+    glt_items = []
     for i, g in enumerate(model.get('glt', []), 1):
         sym = g.get('sym', '')
         label = g.get('label', '')
-        glt_str += f\"-gltsym 'SYM: {sym}' -glt_label {i} {label} \"
+        glt_items.extend(['-gltsym', f'SYM: {sym}', '-glt_label', str(i), label])
+    
+    glt_items_str = ' '.join(shlex.quote(x) for x in glt_items)
     
     print(f'STIM_PATHS=({stim_files_str})')
     print(f'STIM_LABELS=({stim_labels_str})')
     print(f'BASIS={shlex.quote(basis)}')
     print(f'STIM_TYPES={shlex.quote(stim_types)}')
-    print(f'GLT_ARGS={shlex.quote(glt_str)}')
+    print(f'GLT_ARGS=({glt_items_str})')
 except Exception as e:
     sys.stderr.write(str(e) + '\n')
     sys.exit(1)
@@ -121,8 +123,7 @@ afni_proc.py \
     "${REGRESS_STIM_LABELS_ARGS[@]}" \
     ${STIM_TYPES_ARG} \
     -regress_basis "$BASIS" \
-    ${GLT_ARGS} \
-    -regress_opts_3dD -jobs 8 \
+    -regress_opts_3dD -jobs 8 "${GLT_ARGS[@]}" \
     -regress_motion_file "${PREPROC_DIR}/dfile_rall.1D" \
     -regress_motion_per_run \
     -regress_censor_motion 0.5 \

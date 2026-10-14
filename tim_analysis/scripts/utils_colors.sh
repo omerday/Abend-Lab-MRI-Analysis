@@ -5,6 +5,11 @@
 
 # Define colors
 BOLD="\033[1m"
+
+# Ensure AFNI binaries are in PATH if available
+if [ -d "$HOME/abin" ] && [[ ":$PATH:" != *":$HOME/abin:"* ]]; then
+    export PATH="$HOME/abin:$PATH"
+fi
 RESET="\033[0m"
 RED="\033[1;31m"
 GREEN="\033[1;32m"

@@ -433,11 +433,18 @@ class PipelineManager:
             cmd.extend(["--group_model", group_model])
 
         tracker.command_list = cmd
+        
+        # Ensure AFNI bin directory is in PATH for child processes
+        env = os.environ.copy()
+        afni_bin = os.path.expanduser("~/abin")
+        if os.path.isdir(afni_bin) and afni_bin not in env.get("PATH", "").split(os.pathsep):
+            env["PATH"] = f"{afni_bin}{os.pathsep}{env.get('PATH', '')}"
 
         # Start process
         process = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=p_dir,
+            env=env,
             stdout=asyncio.subprocess.DEVNULL, # Logs are written directly to logs/ by run_analysis.py
             stderr=asyncio.subprocess.DEVNULL,
         )

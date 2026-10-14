@@ -7,6 +7,12 @@ Uses HTML formatting and robust escaping to prevent entity parse errors.
 
 import os
 import sys
+
+# Ensure AFNI binaries are in PATH if available
+afni_bin = os.path.expanduser("~/abin")
+if os.path.isdir(afni_bin) and afni_bin not in os.environ.get("PATH", "").split(os.pathsep):
+    os.environ["PATH"] = f"{afni_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+
 import glob
 import html
 import logging
