@@ -135,7 +135,8 @@ elif [ "$ANALYSIS_TYPE" == "3dttest++" ]; then
 
     3dttest++ -prefix "$OUTPUT_PREFIX" \
         -mask "$MASK" \
-        -setA "$SET_A_LABEL" ${SET_A_FILES}
+        -setA "$SET_A_LABEL" ${SET_A_FILES} \
+        -clustsim
 
 else
     log_error "Unknown analysis type '${ANALYSIS_TYPE}'"
