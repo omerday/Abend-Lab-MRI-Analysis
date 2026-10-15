@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn
 from rich import print as rprint
 from rich.traceback import install
+from rich.markup import escape
 
 # Install rich traceback handler
 install()
@@ -58,11 +59,12 @@ def stage_in_prerequisites(subject_id, session_id_str, step_name, config, active
             else:
                 console.log(f"[yellow]Warning:[/] Pre-requisite func_preproc not found on permanent drive at: {perm_func}")
 
-def stage_out_step(subject_id, session_id_str, step_name, config, active_output_dir, analysis_name=None):
+def stage_out_step(subject_id, session_id_str, step_name, config, active_output_dir, analysis_name=None, remove_local=False):
     """
     Sync ONLY the specific output directory created by the executed step
     from active scratch back to the permanent output drive.
     Avoids re-syncing or traversing staged-in prerequisite directories.
+    If remove_local is True, removes the local scratch directory after syncing.
     """
     if active_output_dir == config["output_dir"]:
         return
@@ -84,8 +86,18 @@ def stage_out_step(subject_id, session_id_str, step_name, config, active_output_
     if os.path.exists(local_path):
         os.makedirs(perm_path, exist_ok=True)
         label = f"{step_name}" if step_name != "glm" else f"glm: {analysis_name}"
-        console.log(f"[cyan]Syncing {subject_id} ({session_prefix}) [{label}] output to permanent drive...[/]")
+        label_str = escape(f"[{label}]")
+        action_verb = "Moving" if remove_local else "Syncing"
+        console.log(f"[cyan]{action_verb} {subject_id} ({session_prefix}) {label_str} output to permanent drive...[/]")
         subprocess.run(["rsync", "-av", "--update", f"{local_path}/", f"{perm_path}/"], check=True)
+        if remove_local and config.get("cleanup_scratch", True):
+            shutil.rmtree(local_path, ignore_errors=True)
+            parent_glm_dir = os.path.dirname(local_path)
+            if os.path.exists(parent_glm_dir) and not os.listdir(parent_glm_dir):
+                try:
+                    os.rmdir(parent_glm_dir)
+                except OSError:
+                    pass
 
 def cleanup_subject_scratch(subject_id, active_output_dir, config):
     """Clean up local scratch folder for subject if configured."""
@@ -150,6 +162,8 @@ def run_step(subject, session, config, analysis_name, step_name, active_output_d
     if process.returncode == 0:
         console.log(f"[green]✓ {step_name}[/] completed for [bold]{subject}[/]")
         return True
+    else:
+        console.log(f"[bold red]✖ {step_name}[/] failed for [bold]{subject}[/]. See log: [underline]{log_file_path}[/]")
         return False
 
 
@@ -255,8 +269,16 @@ def process_subject(subject_id, args, main_config, analysis_models, progress=Non
                             all_glm_success = False
                             break
 
-                        # Stage out after successful GLM (only this analysis model)
-                        stage_out_step(subject_id, session_id_str, "glm", main_config, active_output_dir, analysis_name=analysis_name)
+                        # Move GLM results to permanent output drive after each GLM model
+                        stage_out_step(
+                            subject_id,
+                            session_id_str,
+                            "glm",
+                            main_config,
+                            active_output_dir,
+                            analysis_name=analysis_name,
+                            remove_local=True
+                        )
 
                     if not all_glm_success:
                         console.log(f"[red]Stopping pipeline for {subject_id} because a GLM step failed.[/]")
