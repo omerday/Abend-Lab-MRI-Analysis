@@ -103,6 +103,26 @@ sessions = [1]
 contrast = "SCR#1_Coef"
 setA_label = "POST_PAIN"
 
+# --- Model: Pain by Post Pain SCR ---
+# Pain period BOLD amplitude modulated by post pain (rating) SCR.
+[pain_by_post_pain_scr]
+description = "Pain period amplitude modulated by post pain SCR."
+stim_files = ["timings/pain_post_pain_scr_amp.1D"]
+stim_labels = ["SCR"]
+basis = "GAM"
+stim_types = "AM2"
+requires_scr = true
+glt = []
+
+[[pain_by_post_pain_scr.group_analyses]]
+name = "pain_by_post_pain_scr"
+type = "3dttest++"
+description = "One-sample t-test for pain modulated by post pain SCR."
+groups = ["TIM"]
+sessions = [1]
+contrast = "SCR#1_Coef"
+setA_label = "PAIN"
+
 # --- Model: Anticipation by SCR ---
 # Anticipation period amplitude modulated by SCR.
 [anticipation_by_scr]

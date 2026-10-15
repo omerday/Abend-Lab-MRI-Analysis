@@ -128,6 +128,10 @@ for i in $(seq 1 $RUNS); do
     [ -f post_pain_scr_amplitude_run-${i}.txt ] && awk -v lag_val="$LAG" '{print $2 - lag_val"*"$3}' post_pain_scr_amplitude_run-${i}.txt > timings/post_pain_scr_amp_run-${i}.txt
     [ -f timings/post_pain_scr_amp_run-${i}.txt ] && echo `cat timings/post_pain_scr_amp_run-${i}.txt` >> timings/post_pain_scr_amp.1D
     rm timings/post_pain_scr_amp_run-*.txt
+
+    [ -f pain_scr_amplitude_run-${i}.txt ] && [ -f post_pain_scr_amplitude_run-${i}.txt ] && paste pain_scr_amplitude_run-${i}.txt post_pain_scr_amplitude_run-${i}.txt | awk -v lag_val="$LAG" '{print $2 - lag_val"*"$7}' > timings/pain_post_pain_scr_amp_run-${i}.txt
+    [ -f timings/pain_post_pain_scr_amp_run-${i}.txt ] && echo `cat timings/pain_post_pain_scr_amp_run-${i}.txt` >> timings/pain_post_pain_scr_amp.1D
+    [ -f timings/pain_post_pain_scr_amp_run-${i}.txt ] && rm timings/pain_post_pain_scr_amp_run-*.txt
 done
 
 # Now convert to AFNI format using timing_tool.py
