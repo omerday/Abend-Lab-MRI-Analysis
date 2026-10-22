@@ -1,12 +1,22 @@
-import os
+import argparse
+from datetime import datetime
 import glob
+import os
 import re
+import shutil
+import sys
+import tempfile
 import pdfkit
 from fpdf import FPDF
 from PIL import Image
-import argparse
-from datetime import datetime
 import toml
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from cloud.gcs_helper import gcs_sync_down, gcs_sync_up, is_gcs_uri, join_uri
+
 
 # --- PDF Class with Enhanced Styling ---
 class PDF(FPDF):
@@ -46,6 +56,7 @@ class PDF(FPDF):
         self.multi_cell(0, 5, text)
         self.ln()
 
+
 # --- PDF Generation Functions ---
 def convert_html_to_pdf(html_path, pdf_path):
     try:
@@ -55,8 +66,12 @@ def convert_html_to_pdf(html_path, pdf_path):
     except Exception as e:
         print(f"  -> Failed to convert file. Error: {e}")
 
+
 def create_pdf_from_images(image_folder, pdf_path, title, subject_info, description=""):
-    images = sorted(glob.glob(os.path.join(image_folder, '*')))
+    images = [
+        p for p in sorted(glob.glob(os.path.join(image_folder, '*')))
+        if p.lower().endswith(('.png', '.jpg', '.jpeg'))
+    ]
     if not images:
         print(f"No images found in {image_folder}")
         return
@@ -88,6 +103,7 @@ def create_pdf_from_images(image_folder, pdf_path, title, subject_info, descript
     pdf.output(pdf_path)
     print("  -> Success.")
 
+
 def create_glm_results_pdf(image_folder, pdf_path, title, subject_info, model_config):
     images = sorted(glob.glob(os.path.join(image_folder, '*.jpg'))) or sorted(glob.glob(os.path.join(image_folder, '*.png')))
     if not images:
@@ -114,10 +130,10 @@ def create_glm_results_pdf(image_folder, pdf_path, title, subject_info, model_co
 
     for prefix, group_images in image_groups.items():
         pdf.add_page()
-        
+
         contrast_info = next((g for g in model_config.get("glt", []) if g["label"] == prefix), None)
         contrast_sym = f"Contrast: {contrast_info['sym']}" if contrast_info else ""
-        
+
         pdf.section_title(f"Contrast: {prefix}")
         if contrast_sym:
             pdf.section_body(contrast_sym)
@@ -131,9 +147,9 @@ def create_glm_results_pdf(image_folder, pdf_path, title, subject_info, model_co
                     w, h = img.size
                     img_dims.append((w, h))
                     total_aspect_ratio += w / h
-            
+
             common_height = page_width / total_aspect_ratio
-            
+
             x = 10
             y = pdf.get_y()
             for i, image_path in enumerate(group_images):
@@ -164,75 +180,107 @@ def create_glm_results_pdf(image_folder, pdf_path, title, subject_info, model_co
     pdf.output(pdf_path)
     print("  -> Success.")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Export MRI analysis results to PDF.")
-    parser.add_argument("--output_dir", default="/media/user/PortableSSD/MDMA/Output", help="Analysis output directory.")
-    parser.add_argument("--dropbox_dir", default=os.path.expanduser("~/Dropbox"), help="Directory to save exported PDFs.")
+    parser.add_argument("--output_dir", help="Analysis output directory (local path or gs:// URI). Defaults to path in config.")
+    parser.add_argument("--dropbox_dir", default=os.path.expanduser("~/Dropbox"), help="Directory or gs:// URI to save exported PDFs.")
     parser.add_argument("--subject", nargs="+", help="Specific subject IDs to export. If omitted, all subjects are exported.")
     args = parser.parse_args()
 
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     try:
-        main_config = toml.load("analysis_configs/main_config.toml")
-        analysis_models = toml.load("analysis_configs/analysis_models.toml")
+        main_config = toml.load(os.path.join(base_dir, "analysis_configs", "main_config.toml"))
+        analysis_models = toml.load(os.path.join(base_dir, "analysis_configs", "analysis_models.toml"))
     except FileNotFoundError as e:
         print(f"Error: Configuration file not found. {e}")
         return
 
+    output_dir = args.output_dir or os.environ.get("MRI_OUTPUT_DIR") or main_config.get("output_dir")
+    if not output_dir:
+        print("Error: output_dir not specified in args or config.")
+        return
+
+    dest_root = os.environ.get("MRI_REPORTS_DIR") or args.dropbox_dir
     subjects_list = main_config.get("subjects", [])
 
-    # Filter to specific subjects if --subject flag was provided
     if args.subject:
         subjects_list = [s for s in subjects_list if s["id"] in args.subject]
         if not subjects_list:
             print(f"No matching subjects found for: {args.subject}")
             return
 
-    for subject_config in subjects_list:
-        subject_id = subject_config["id"]
-        subject_group = subject_config.get("group", "N/A")
-        print(f"--- Processing subject: {subject_id} (Group: {subject_group}) ---")
+    tmp_work_dir = tempfile.mkdtemp(prefix="afni_export_") if (is_gcs_uri(output_dir) or is_gcs_uri(dest_root)) else None
 
-        for session_config in subject_config.get("sessions", []):
-            session_id = f"ses-{session_config['id']}"
-            print(f"  - Processing session: {session_id} -")
+    try:
+        for subject_config in subjects_list:
+            subject_id = subject_config["id"]
+            subject_group = subject_config.get("group", "N/A")
+            print(f"--- Processing subject: {subject_id} (Group: {subject_group}) ---")
 
-            session_folder = os.path.join(args.output_dir, subject_id, session_id)
-            if not os.path.isdir(session_folder): continue
+            for session_config in subject_config.get("sessions", []):
+                session_id = f"ses-{session_config['id']}"
+                print(f"  - Processing session: {session_id} -")
 
-            dest_folder = os.path.join(args.dropbox_dir, subject_id, session_id)
-            os.makedirs(dest_folder, exist_ok=True)
-            
-            subject_info_str = f"Subject: {subject_id} | Session: {session_id} | Group: {subject_group}"
+                if is_gcs_uri(output_dir):
+                    session_folder = os.path.join(tmp_work_dir, "in", subject_id, session_id)
+                    gcs_session_uri = join_uri(output_dir, subject_id, session_id)
+                    if not gcs_sync_down(gcs_session_uri, session_folder, exclude_regex=r".*\.(BRIK|nii)(\.gz)?$"):
+                        continue
+                else:
+                    session_folder = os.path.join(output_dir, subject_id, session_id)
+                    if not os.path.isdir(session_folder):
+                        continue
 
-            html_path = os.path.join(session_folder, "func_preproc", f"{subject_id}_preproc.results", f"QC_{subject_id}_preproc", "index.html")
-            if os.path.exists(html_path):
-                pdf_path = os.path.join(dest_folder, f"{subject_id}_{session_id}_preproc_QC.pdf")
-                convert_html_to_pdf(html_path, pdf_path)
+                if is_gcs_uri(dest_root):
+                    dest_folder = os.path.join(tmp_work_dir, "out", subject_id, session_id)
+                else:
+                    dest_folder = os.path.join(dest_root, subject_id, session_id)
+                os.makedirs(dest_folder, exist_ok=True)
 
-            anat_warped_folder = os.path.join(session_folder, "anat_warped")
-            if os.path.isdir(anat_warped_folder):
-                pdf_path = os.path.join(dest_folder, f"{subject_id}_{session_id}_anatomical_QC.pdf")
-                create_pdf_from_images(anat_warped_folder, pdf_path, "Anatomical QC Report", subject_info_str, "Results of anatomical data warping to MNI space.")
+                subject_info_str = f"Subject: {subject_id} | Session: {session_id} | Group: {subject_group}"
 
-            glm_base_folder = os.path.join(session_folder, "glm")
-            if os.path.isdir(glm_base_folder):
-                for analysis_name, model_config in analysis_models.items():
-                    analysis_folder = os.path.join(glm_base_folder, analysis_name)
-                    if not os.path.isdir(analysis_folder): continue
-                    
-                    print(f"    - Processing analysis: {analysis_name} -")
-                    
-                    glm_qc_media_folder = os.path.join(analysis_folder, f"{subject_id}_{analysis_name}.results", f"QC_{subject_id}_{analysis_name}", "media")
-                    if os.path.isdir(glm_qc_media_folder):
-                        pdf_path = os.path.join(dest_folder, f"{subject_id}_{session_id}_{analysis_name}_QC.pdf")
-                        create_pdf_from_images(glm_qc_media_folder, pdf_path, f"GLM QC: {analysis_name}", subject_info_str, "Quality control metrics from the AFNI preprocessing and GLM pipeline.")
+                html_path = os.path.join(session_folder, "func_preproc", f"{subject_id}_preproc.results", f"QC_{subject_id}_preproc", "index.html")
+                if os.path.exists(html_path):
+                    pdf_path = os.path.join(dest_folder, f"{subject_id}_{session_id}_preproc_QC.pdf")
+                    convert_html_to_pdf(html_path, pdf_path)
 
-                    glm_results_qc_folder = os.path.join(analysis_folder, "QC")
-                    if os.path.isdir(glm_results_qc_folder):
-                        pdf_path = os.path.join(dest_folder, f"{subject_id}_{session_id}_{analysis_name}_results.pdf")
-                        create_glm_results_pdf(glm_results_qc_folder, pdf_path, f"GLM Results: {analysis_name}", subject_info_str, model_config)
+                anat_warped_folder = os.path.join(session_folder, "anat_warped")
+                if os.path.isdir(anat_warped_folder):
+                    pdf_path = os.path.join(dest_folder, f"{subject_id}_{session_id}_anatomical_QC.pdf")
+                    create_pdf_from_images(anat_warped_folder, pdf_path, "Anatomical QC Report", subject_info_str, "Results of anatomical data warping to MNI space.")
+
+                glm_base_folder = os.path.join(session_folder, "glm")
+                if os.path.isdir(glm_base_folder):
+                    for analysis_name, model_config in analysis_models.items():
+                        analysis_folder = os.path.join(glm_base_folder, analysis_name)
+                        if not os.path.isdir(analysis_folder):
+                            continue
+
+                        print(f"    - Processing analysis: {analysis_name} -")
+
+                        glm_qc_media_folder = os.path.join(analysis_folder, f"{subject_id}_{analysis_name}.results", f"QC_{subject_id}_{analysis_name}", "media")
+                        if os.path.isdir(glm_qc_media_folder):
+                            pdf_path = os.path.join(dest_folder, f"{subject_id}_{session_id}_{analysis_name}_QC.pdf")
+                            create_pdf_from_images(glm_qc_media_folder, pdf_path, f"GLM QC: {analysis_name}", subject_info_str, "Quality control metrics from the AFNI preprocessing and GLM pipeline.")
+
+                        glm_results_qc_folder = os.path.join(analysis_folder, "QC")
+                        if os.path.isdir(glm_results_qc_folder):
+                            pdf_path = os.path.join(dest_folder, f"{subject_id}_{session_id}_{analysis_name}_results.pdf")
+                            create_glm_results_pdf(glm_results_qc_folder, pdf_path, f"GLM Results: {analysis_name}", subject_info_str, model_config)
+
+                if is_gcs_uri(dest_root):
+                    gcs_dest_uri = join_uri(dest_root, subject_id, session_id)
+                    print(f"    - Uploading exported PDFs to {gcs_dest_uri} -")
+                    gcs_sync_up(dest_folder, gcs_dest_uri)
+                if is_gcs_uri(output_dir):
+                    shutil.rmtree(session_folder, ignore_errors=True)
+    finally:
+        if tmp_work_dir and os.path.exists(tmp_work_dir):
+            shutil.rmtree(tmp_work_dir, ignore_errors=True)
 
     print("--- All processing complete ---")
+
 
 if __name__ == "__main__":
     main()

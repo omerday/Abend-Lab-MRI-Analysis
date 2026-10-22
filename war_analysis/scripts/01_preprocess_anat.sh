@@ -38,11 +38,21 @@ SESSION_PREFIX="ses-${SESSION}"
 ANAT_INPUT_FILE="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/anat/${SUBJECT}_${SESSION_PREFIX}_T1w.nii.gz"
 ANAT_OUTPUT_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/anat_warped"
 
-# Find the MNI template. Assume it's in the parent directory of the project.
-MNI_TEMPLATE=${INPUT_DIR}/MNI152_2009_template_SSW.nii.gz
-if [ -z "$MNI_TEMPLATE" ]; then
-    log_error "MNI152_2009_template.nii.gz not found in parent directory of input."
-    exit 1
+# Find the MNI SSW template across container, project, input, or AFNI directories
+MNI_SSW_TEMPLATE=""
+for candidate in \
+    "/opt/afni_templates/MNI152_2009_template_SSW.nii.gz" \
+    "${SCRIPT_DIR}/../MNI152_2009_template_SSW.nii.gz" \
+    "${INPUT_DIR}/MNI152_2009_template_SSW.nii.gz" \
+    "${INPUT_DIR}/../MNI152_2009_template_SSW.nii.gz"; do
+    if [ -f "$candidate" ]; then
+        MNI_SSW_TEMPLATE="$candidate"
+        break
+    fi
+done
+
+if [ -z "$MNI_SSW_TEMPLATE" ]; then
+    MNI_SSW_TEMPLATE="MNI152_2009_template_SSW.nii.gz"
 fi
 
 print_header "Starting Anatomical Preprocessing for ${SUBJECT}, ${SESSION_PREFIX}"
@@ -62,10 +72,10 @@ fi
 # Create the output directory
 mkdir -p "$ANAT_OUTPUT_DIR"
 
-log_info "Running SSWarper on ${SUBJECT}"
+log_info "Running SSWarper on ${SUBJECT} (base: ${MNI_SSW_TEMPLATE})"
 sswarper2 \
     -input "$ANAT_INPUT_FILE" \
-    -base MNI152_2009_template_SSW.nii.gz \
+    -base "$MNI_SSW_TEMPLATE" \
     -subid "$SUBJECT" \
     -odir "$ANAT_OUTPUT_DIR" \
     -giant_move \

@@ -1,0 +1,200 @@
+# ==============================================================================
+# Google Cloud Workflow: Abend Lab fMRI Analysis Runner (`run-mri-pipeline`)
+#
+# Allows triggering any TIM or WAR analysis directly from the GCP Console UI
+# ("Workflows" -> "run-mri-pipeline" -> "Execute") by passing a simple JSON input.
+#
+# Supported Input JSON Parameters (all optional, with sensible defaults):
+#   - job_name       (string) : Optional custom name tag for easy identification in
+#                               Cloud Batch & Cloud Logging (e.g., "pilot-sub435"
+#                               or "cohort1-preproc-glm"). If omitted, a descriptive
+#                               name is auto-generated from the step and subject(s).
+#   - pipeline       (string) : "tim" (default) or "war".
+#   - steps          (list)   : Steps to run in sequence, e.g. ["preprocess", "glm"],
+#                               ["create_timings"], ["preprocess_anat"], ["preprocess_func"],
+#                               ["glm"], ["all"], or ["group_analysis"].
+#   - subjects       (list)   : Subject IDs to process, e.g. ["sub-435", "sub-473"].
+#                               Each subject runs on its own isolated VM in parallel.
+#                               If omitted/empty, processes all subjects in main_config.toml.
+#   - analyses       (list)   : GLM model name(s), e.g. ["all"] or ["model1_all_runs_p1"].
+#   - group_model    (string) : Group model name when steps == ["group_analysis"].
+#   - session        (int/str): Optional session number (e.g., 1).
+#   - use_spot_vms   (bool)   : true (default, ~70% cheaper Spot VMs) or false (Standard On-Demand VMs).
+#   - export_qc_pdfs (bool)   : true (default) to automatically generate & upload QC PDF reports.
+#   - parallelism    (int)    : Max concurrent subject VMs (default: 10).
+#   - machine_type   (string) : Compute Engine machine type per subject task (default: "e2-standard-8").
+#
+# Example Input JSON:
+# {
+#   "job_name": "cohort1-preproc-glm",
+#   "pipeline": "tim",
+#   "steps": ["preprocess", "glm"],
+#   "subjects": [
+#     "sub-435", "sub-473", "sub-489", "sub-499", "sub-500",
+#     "sub-502", "sub-503", "sub-504", "sub-505", "sub-506"
+#   ],
+#   "analyses": ["all"],
+#   "use_spot_vms": true,
+#   "export_qc_pdfs": true
+# }
+# ==============================================================================
+
+main:
+  params: [args]
+  steps:
+    # --------------------------------------------------------------------------
+    # Step 1: Parse input parameters, apply defaults, and construct a readable
+    #         Cloud Batch Job ID (`mri-<pipeline>-<job_name>-<YYYYMMDDtHHMMSS>`).
+    # --------------------------------------------------------------------------
+    - init_defaults:
+        assign:
+          - project_id: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - workflow_location: ${default(sys.get_env("GOOGLE_CLOUD_LOCATION"), "us-central1")}
+          - region: ${default(map.get(args, "region"), workflow_location)}
+          - bucket: ${default(map.get(args, "bucket"), "abend-lab-mri-analysis")}
+          - image_uri: ${default(map.get(args, "image_uri"), region + "-docker.pkg.dev/" + project_id + "/mri-analysis/afni-pipeline:latest")}
+          - pipeline: ${text.to_lower(default(map.get(args, "pipeline"), "tim"))}
+          - steps_list: ${default(map.get(args, "steps"), ["preprocess", "glm"])}
+          - subjects_list: ${default(map.get(args, "subjects"), [])}
+          - analyses_list: ${default(map.get(args, "analyses"), [])}
+          - group_model: ${default(map.get(args, "group_model"), "")}
+          - session: ${default(map.get(args, "session"), "")}
+          - use_spot_vms: ${default(map.get(args, "use_spot_vms"), true)}
+          - export_qc_pdfs: ${default(map.get(args, "export_qc_pdfs"), true)}
+          - machine_type: ${default(map.get(args, "machine_type"), "e2-custom-8-16384")}
+          - max_parallelism: ${default(map.get(args, "parallelism"), 10)}
+          - custom_job_name: ${default(map.get(args, "job_name"), "")}
+
+          # Concurrency & Provisioning:
+          # - Each subject gets its own task (1 task = 1 dedicated VM), up to max_parallelism at once.
+          # - Group analysis runs as a single task aggregating across subjects.
+          - task_count: ${if(len(subjects_list) > 0 and not ("group_analysis" in steps_list), len(subjects_list), 1)}
+          - provisioning_model: ${if(use_spot_vms, "SPOT", "STANDARD")}
+
+          # Build human-readable job slug (either from `job_name` or auto-derived from step + subjects)
+          - first_step: ${if(len(steps_list) > 0, string(steps_list[0]), "run")}
+          - target_desc: ${if("group_analysis" in steps_list and group_model != "", group_model, if(len(subjects_list) == 1, string(subjects_list[0]), if(len(subjects_list) > 1, string(len(subjects_list)) + "subj", "allsubj")))}
+          - raw_slug: ${if(custom_job_name != "", string(custom_job_name), first_step + "-" + target_desc)}
+          - clean_slug: ${text.to_lower(raw_slug)}
+          - clean_slug: ${text.replace_all(clean_slug, "_", "-")}
+          - clean_slug: ${text.replace_all(clean_slug, " ", "-")}
+          - clean_slug: ${text.replace_all(clean_slug, ".", "-")}
+          - clean_slug: ${text.replace_all(clean_slug, ":", "-")}
+          - clean_slug: ${if(len(clean_slug) > 30, text.substring(clean_slug, 0, 30), clean_slug)}
+
+          # Format compact UTC timestamp (YYYYMMDDtHHMMSS) and assemble valid 63-char Batch jobId
+          - iso_now: ${time.format(sys.now())}
+          - compact_ts: ${text.to_lower(text.replace_all(text.replace_all(text.substring(iso_now, 0, 19), "-", ""), ":", ""))}
+          - job_id: ${"mri-" + pipeline + "-" + clean_slug + "-" + compact_ts}
+          - job_id: ${text.replace_all(job_id, "--", "-")}
+
+    # --------------------------------------------------------------------------
+    # Step 2: Construct CLI arguments passed to `cloud/entrypoint.sh` -> `run_analysis.py`
+    # --------------------------------------------------------------------------
+    - build_cli_args:
+        assign:
+          - cmd_args: ["--step"]
+          - cmd_args: ${list.concat(cmd_args, steps_list)}
+    - append_subjects:
+        switch:
+          - condition: ${len(subjects_list) > 0}
+            assign:
+              - cmd_args: ${list.concat(list.concat(cmd_args, ["--subject"]), subjects_list)}
+    - append_analyses:
+        switch:
+          - condition: ${len(analyses_list) > 0}
+            assign:
+              - cmd_args: ${list.concat(list.concat(cmd_args, ["--analysis"]), analyses_list)}
+    - append_group_model:
+        switch:
+          - condition: ${group_model != ""}
+            assign:
+              - cmd_args: ${list.concat(cmd_args, ["--group_model", group_model])}
+    - append_session:
+        switch:
+          - condition: ${session != ""}
+            assign:
+              - cmd_args: ${list.concat(cmd_args, ["--session", string(session)])}
+
+    # --------------------------------------------------------------------------
+    # Step 3: Submit the Google Cloud Batch Job
+    #         Each task requests 8 vCPUs (8000 cpuMilli), 16 GB RAM, and a 40 GB pd-balanced disk.
+    # --------------------------------------------------------------------------
+    - submit_batch_job:
+        call: http.post
+        args:
+          url: ${"https://batch.googleapis.com/v1/projects/" + project_id + "/locations/" + region + "/jobs?jobId=" + job_id}
+          auth:
+            type: OAuth2
+          body:
+            labels:
+              pipeline: ${pipeline}
+              step: ${text.replace_all(text.to_lower(first_step), "_", "-")}
+              job_name: ${clean_slug}
+              provisioning: ${text.to_lower(provisioning_model)}
+            taskGroups:
+              - taskCount: ${task_count}
+                parallelism: ${if(task_count < max_parallelism, task_count, max_parallelism)}
+                taskSpec:
+                  maxRetryCount: 2
+                  maxRunDuration: "43200s"
+                  computeResource:
+                    cpuMilli: 8000
+                    memoryMib: 16384
+                    bootDiskMib: 40960
+                  environment:
+                    variables:
+                      PIPELINE: ${pipeline}
+                      GCS_BUCKET: ${bucket}
+                      EXPORT_QC_PDFS: ${if(export_qc_pdfs, "true", "false")}
+                      OMP_NUM_THREADS: "8"
+                  runnables:
+                    - container:
+                        imageUri: ${image_uri}
+                        commands: ${cmd_args}
+            allocationPolicy:
+              instances:
+                - policy:
+                    machineType: ${machine_type}
+                    provisioningModel: ${provisioning_model}
+                    bootDisk:
+                      type: "pd-balanced"
+                      sizeGb: 40
+            logsPolicy:
+              destination: CLOUD_LOGGING
+        result: batch_response
+
+    # --------------------------------------------------------------------------
+    # Step 4: Poll Cloud Batch Job state every 30 seconds until completion
+    # --------------------------------------------------------------------------
+    - wait_for_completion:
+        call: sys.sleep
+        args:
+          seconds: 30
+
+    - poll_job_status:
+        call: http.get
+        args:
+          url: ${"https://batch.googleapis.com/v1/projects/" + project_id + "/locations/" + region + "/jobs/" + job_id}
+          auth:
+            type: OAuth2
+        result: job_status
+
+    - check_state:
+        switch:
+          - condition: ${job_status.body.status.state == "SUCCEEDED"}
+            return:
+              status: "SUCCEEDED"
+              job_id: ${job_id}
+              job_name: ${clean_slug}
+              pipeline: ${pipeline}
+              provisioning_model: ${provisioning_model}
+              task_count: ${task_count}
+              outputs_uri: ${"gs://" + bucket + "/outputs/" + pipeline}
+              reports_uri: ${"gs://" + bucket + "/reports/" + pipeline}
+          - condition: ${job_status.body.status.state == "FAILED" or job_status.body.status.state == "CANCELLED"}
+            raise:
+              message: '${"Cloud Batch job " + job_id + " finished with state: " + job_status.body.status.state}'
+              job_id: ${job_id}
+              status: ${job_status.body.status}
+        next: wait_for_completion

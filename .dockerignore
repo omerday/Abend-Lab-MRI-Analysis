@@ -1,0 +1,13 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+build/
+remote_monitor/
+tim_analysis/logs/*.log
+war_analysis/logs/*.log
+tim_analysis/old_scripts/
+war_analysis/old_scripts/
+*.ipynb
+.DS_Store

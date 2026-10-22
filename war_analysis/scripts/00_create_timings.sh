@@ -88,10 +88,10 @@ fi
 # --- SCR Binned Files ---
 print_subheader "Processing SCR Binned Files"
 if [ -f "binned_scr_run-1.txt" ]; then
-    python "${SCRIPT_DIR}/../utils/create_tr_magnitude_file.py" --binned_tsv binned_scr_run-1.txt --lag "${LAG_BLOCK_1}" --output timings/scr_binned_run-1.1D
+    python3 "${SCRIPT_DIR}/../utils/create_tr_magnitude_file.py" --binned_tsv binned_scr_run-1.txt --lag "${LAG_BLOCK_1}" --output timings/scr_binned_run-1.1D
 fi
 if [ -f "binned_scr_run-2.txt" ]; then
-    python "${SCRIPT_DIR}/../utils/create_tr_magnitude_file.py" --binned_tsv binned_scr_run-2.txt --lag "${LAG_BLOCK_2}" --output timings/scr_binned_run-2.1D
+    python3 "${SCRIPT_DIR}/../utils/create_tr_magnitude_file.py" --binned_tsv binned_scr_run-2.txt --lag "${LAG_BLOCK_2}" --output timings/scr_binned_run-2.1D
 fi
 
 # --- Convert to AFNI format ---

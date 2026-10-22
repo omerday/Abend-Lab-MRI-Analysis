@@ -40,6 +40,9 @@ SESSION_PREFIX="ses-${SESSION}"
 PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc/${SUBJECT}_preproc.results"
 GLM_OUTPUT_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/glm/${ANALYSIS_NAME}"
 TIMING_DIR="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func"
+if [ ! -d "${TIMING_DIR}/timings" ] && [ -d "${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/timings" ]; then
+    TIMING_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}"
+fi
 if [ ! -f "$CONFIG_FILE" ]; then
     CONFIG_FILE="${SCRIPT_DIR}/../analysis_configs/analysis_models.toml"
 fi
@@ -164,7 +167,7 @@ mkdir -p "$QC_DIR"
 
 for stim in "${STIM_LABELS[@]}"; do
     @chauffeur_afni                                             \
-        -ulay               "../../func_preproc/${SUBJECT}_preproc.results/anat_final.${SUBJECT}_preproc+tlrc.HEAD"      \
+        -ulay               "${PREPROC_DIR}/anat_final.${SUBJECT}_preproc+tlrc.HEAD" \
         -ulay_range         0% 130%                             \
         -olay               "${OLAY_DATASET}"                   \
         -box_focus_slices   AMASK_FOCUS_ULAY                    \

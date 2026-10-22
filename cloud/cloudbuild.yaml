@@ -1,0 +1,19 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        docker pull ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/afni-pipeline:latest || true
+        docker build \
+          --cache-from ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/afni-pipeline:latest \
+          -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/afni-pipeline:latest \
+          .
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/afni-pipeline:latest'
+substitutions:
+  _REGION: 'us-central1'
+  _REPO: 'mri-analysis'
+options:
+  machineType: 'E2_HIGHCPU_8'
+timeout: '3600s'

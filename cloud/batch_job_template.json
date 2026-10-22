@@ -1,0 +1,55 @@
+{
+  "taskGroups": [
+    {
+      "taskCount": 10,
+      "parallelism": 10,
+      "taskSpec": {
+        "maxRetryCount": 2,
+        "maxRunDuration": "43200s",
+        "computeResource": {
+          "cpuMilli": 8000,
+          "memoryMib": 16384,
+          "bootDiskMib": 40960
+        },
+        "environment": {
+          "variables": {
+            "PIPELINE": "tim",
+            "GCS_BUCKET": "abend-lab-mri-analysis",
+            "EXPORT_QC_PDFS": "true",
+            "OMP_NUM_THREADS": "8"
+          }
+        },
+        "runnables": [
+          {
+            "container": {
+              "imageUri": "us-central1-docker.pkg.dev/YOUR_PROJECT_ID/mri-analysis/afni-pipeline:latest",
+              "commands": [
+                "--step", "preprocess", "glm",
+                "--subject",
+                "sub-435", "sub-473", "sub-489", "sub-499", "sub-500",
+                "sub-502", "sub-503", "sub-504", "sub-505", "sub-506"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "allocationPolicy": {
+    "instances": [
+      {
+        "policy": {
+          "machineType": "e2-custom-8-16384",
+          "provisioningModel": "SPOT",
+          "bootDisk": {
+            "type": "pd-balanced",
+            "sizeGb": 40
+          }
+        }
+      }
+    ]
+  },
+  "logsPolicy": {
+    "destination": "CLOUD_LOGGING"
+  }
+}

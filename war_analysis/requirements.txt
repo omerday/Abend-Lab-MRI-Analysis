@@ -2,5 +2,9 @@ pdfkit
 fpdf2
 Pillow
 toml
-pypdf
+pypdf==3.8.1; python_version < "3.7"
+pypdf>=3.9.0; python_version >= "3.7"
 rich
+pandas
+numpy
+google-cloud-storage

@@ -1,11 +1,20 @@
 # Main configuration for the fMRI analysis pipeline
 
 # --- Paths ---
-# Absolute path to the directory containing the raw BIDS data.
+# Path or GCS URI (gs://bucket/inputs/war) containing the raw BIDS data (or per-subject .zip files).
 input_dir = "/home/user/Documents/MDMA/Input"
 
-# Absolute path to the directory where all outputs (derivatives) will be saved.
+# Path or GCS URI (gs://bucket/outputs/war) where all outputs (derivatives) will be saved.
 output_dir = "/media/user/PortableSSD/MDMA/Output"
+
+# Fast local scratch directory for intermediate computation (NVMe / internal SSD).
+scratch_dir = "/tmp/afni_scratch"
+
+# Automatically delete local scratch files for a subject once synced to output_dir
+cleanup_scratch = true
+
+# Keep intermediate pb00-pb04 functional preprocessing bricks (false = delete pb00-pb04 to save space while keeping pb05/fitts/errts)
+keep_pb00_pb04 = false
 
 # --- Subjects ---
 # List of subjects to be processed.

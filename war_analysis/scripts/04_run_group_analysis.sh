@@ -44,9 +44,20 @@ if [ -z "$ANALYSIS_TYPE" ] || [ -z "$OUTPUT_PREFIX" ] || [ -z "$MASK" ]; then
     exit 1
 fi
 
-# Find the MNI template. Assume it's in the parent directory of the project.
-MNI_TEMPLATE=$(find .. -name "MNI152_2009_template.nii.gz" | head -n 1)
+# Find the MNI template via container path, SCRIPT_DIR, or parent search
+MNI_TEMPLATE=""
+for candidate in \
+    "/opt/afni_templates/MNI152_2009_template.nii.gz" \
+    "${SCRIPT_DIR}/../MNI152_2009_template.nii.gz"; do
+    if [ -f "$candidate" ]; then
+        MNI_TEMPLATE="$candidate"
+        break
+    fi
+done
 if [ -z "$MNI_TEMPLATE" ]; then
+    MNI_TEMPLATE=$(find .. -name "MNI152_2009_template.nii.gz" 2>/dev/null | head -n 1)
+fi
+if [ -z "$MNI_TEMPLATE" ] || [ ! -f "$MNI_TEMPLATE" ]; then
     log_error "MNI152_2009_template.nii.gz not found."
     exit 1
 fi

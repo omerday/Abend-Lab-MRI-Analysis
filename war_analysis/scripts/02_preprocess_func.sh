@@ -39,8 +39,19 @@ ANAT_WARPED_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/anat_warped"
 FUNC_PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc"
 
 # Find the MNI template
-MNI_TEMPLATE=$(find "${INPUT_DIR}/.." -name "MNI152_2009_template.nii.gz" | head -n 1)
-if [ -z "$MNI_TEMPLATE" ]; then
+MNI_TEMPLATE=""
+for candidate in \
+    "/opt/afni_templates/MNI152_2009_template.nii.gz" \
+    "${SCRIPT_DIR}/../MNI152_2009_template.nii.gz" \
+    "${INPUT_DIR}/MNI152_2009_template.nii.gz" \
+    "${INPUT_DIR}/../MNI152_2009_template.nii.gz"; do
+    if [ -f "$candidate" ]; then
+        MNI_TEMPLATE="$candidate"
+        break
+    fi
+done
+
+if [ -z "$MNI_TEMPLATE" ] || [ ! -f "$MNI_TEMPLATE" ]; then
     log_error "MNI152_2009_template.nii.gz not found."
     exit 1
 fi
@@ -94,5 +105,16 @@ afni_proc.py \
     -regress_censor_motion 0.5 \
     -regress_censor_outliers 0.05 \
     -execute
+
+if [ "${KEEP_PB00_PB04:-0}" != "1" ] && [ -d "${SUBJECT}_preproc.results" ]; then
+    log_info "Removing intermediate pb00-pb04 and all_runs bricks to save storage space..."
+    rm -f "${SUBJECT}_preproc.results"/pb00.* \
+          "${SUBJECT}_preproc.results"/pb01.* \
+          "${SUBJECT}_preproc.results"/pb02.* \
+          "${SUBJECT}_preproc.results"/pb03.* \
+          "${SUBJECT}_preproc.results"/pb04.* \
+          "${SUBJECT}_preproc.results"/all_runs.* \
+          "${SUBJECT}_preproc.results"/rm.*
+fi
 
 log_success "Functional Preprocessing for ${SUBJECT} Complete"
