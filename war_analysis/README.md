@@ -1,105 +1,179 @@
-# fMRI Analysis Pipeline for WAR Task
+# fMRI Analysis Pipeline for WAR Task (Threat Appraisal & Emotion Regulation)
 
-This project provides a modular, configurable, and reproducible pipeline for conducting first-level and group-level fMRI analyses for the WAR task, built primarily around AFNI. It is designed to streamline the process, allowing researchers to easily define and execute various analysis models without modifying core scripts.
+This directory contains the modular, reproducible, and production-grade fMRI analysis pipeline for the **Threat Appraisal and Emotion Regulation (WAR)** task paradigm, conducted by the **Abend Lab for Neuroscience of Psychopathology**. Built around AFNI (`sswarper2`, `afni_proc.py`, `3dttest++`, `3dLMEr`, `@chauffeur_afni`), the pipeline provides automated end-to-end processing—from raw BIDS datasets and electrodermal skin conductance response (SCR) records to publication-ready statistical activation maps and QC PDF reports.
 
 ---
 
 ## Table of Contents
-- [Prerequisites](#prerequisites)
+- [Paradigm Overview](#paradigm-overview)
+  - [Experimental Design](#experimental-design)
+  - [28-Second Initial Lag Blocks](#28-second-initial-lag-blocks)
+  - [11-Bin TR Expansion for Autonomic SCR](#11-bin-tr-expansion-for-autonomic-scr)
+  - [Image-Level SCR Delta Amplitude Modulation](#image-level-scr-delta-amplitude-modulation)
 - [Directory Structure](#directory-structure)
-- [Configuration](#configuration)
+- [Prerequisites & Environment Setup](#prerequisites--environment-setup)
+- [Configuration Reference](#configuration-reference)
   - [Main Configuration (`analysis_configs/main_config.toml`)](#main-configuration-analysis_configsmain_configtoml)
-  - [Analysis Model Configuration (`analysis_configs/analysis_models.toml`)](#analysis-model-configuration-analysis_configsanalysis_modelstoml)
-- [Workflow](#workflow)
+  - [Analysis Models (`analysis_configs/analysis_models.toml`)](#analysis-models-analysis_configsanalysis_modelstoml)
+- [Environment Variables](#environment-variables)
+- [AFNI Neuroimaging Parameters & Rationale](#afni-neuroimaging-parameters--rationale)
+  - [Repetition Time (TR = 2.0s)](#repetition-time-tr--20s)
+  - [Multi-Echo Echo Times & Optimal Combination (OC)](#multi-echo-echo-times--optimal-combination-oc)
+  - [Non-Linear Anatomical Registration (`sswarper2` & Cost Function `lpa`)](#non-linear-anatomical-registration-sswarper2--cost-function-lpa)
+  - [Spatial Smoothing (4.0 mm FWHM)](#spatial-smoothing-40-mm-fwhm)
+  - [Motion Censoring (0.5 mm Euclidean Norm)](#motion-censoring-05-mm-euclidean-norm)
+  - [Outlier Censoring (5% Outlier Fraction)](#outlier-censoring-5-outlier-fraction)
+  - [Intermediate Functional Brick Cleanup (`KEEP_PB00_PB04`)](#intermediate-functional-brick-cleanup-keep_pb00_pb04)
+- [Workflow & Step Organization](#workflow--step-organization)
   - [First-Level Analysis (`run_analysis.py`)](#first-level-analysis-run_analysispy)
-  - [Group-Level Analysis (`run_group_level.py`)](#group-level-analysis-run_group_levelpy)
-- [Output Structure](#output-structure)
-- [Advanced Usage](#advanced-usage)
-  - [Adding a New Analysis Model](#adding-a-new-analysis-model)
-  - [Running Specific Subjects](#running-specific-subjects)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
+  - [Group-Level Analysis (`run_analysis.py --step group_analysis`)](#group-level-analysis-run_analysispy---step-group_analysis)
+- [Statistical Modeling Architecture](#statistical-modeling-architecture)
+  - [First-Level Models (`by_block`, `by_image`, `by_scr_bins`)](#first-level-models-by_block-by_image-by_scr_bins)
+  - [Group Linear Mixed Effects (`3dLMEr` with 3dClustSim ACF)](#group-linear-mixed-effects-3dlmer-with-3dclustsim-acf)
+  - [Group T-Tests (`3dttest++`)](#group-t-tests-3dttest)
+- [CLI Usage Guide](#cli-usage-guide)
+  - [Main Controller (`run_analysis.py`)](#main-controller-run_analysispy-1)
+  - [Results & QC Exporter (`export_results.py`)](#results--qc-exporter-export_resultspy)
+  - [Multi-Subject Report Merger (`concatenate_reports.py`)](#multi-subject-report-merger-concatenate_reportspy)
+  - [TR Magnitude Generator (`utils/create_tr_magnitude_file.py`)](#tr-magnitude-generator-utilscreate_tr_magnitude_filepy)
+  - [Ledalab ERA Processor (`utils/process_era_files.py`)](#ledalab-era-processor-utilsprocess_era_filespy)
+  - [DICOM to BIDS Converter (`utils/mri_file_preprocess.py`)](#dicom-to-bids-converter-utilsmri_file_preprocesspy)
+- [Output Directory Structure](#output-directory-structure)
+- [Quality Control & Verification](#quality-control--verification)
 
 ---
 
-## Prerequisites
+## Paradigm Overview
 
-1.  **AFNI**: The core analysis software. Ensure that AFNI commands (`afni_proc.py`, `3dttest++`, `sswarper2`, `timing_tool.py`, etc.) are available in your shell's path.
-2.  **Python 3**: The pipeline's controller scripts are written in Python.
-3.  **TOML Library**: The configuration files use the TOML format. Install the Python library:
-    ```bash
-    pip install toml
-    ```
-4.  **dcm2niix**: Used by `mri_file_preprocess.py` for DICOM to NIfTI conversion. Ensure it's installed and accessible.
+### Experimental Design
+The **WAR** experiment investigates neural and autonomic reactivity during threat appraisal, emotional provocation, and cognitive regulation in healthy and clinical cohorts (e.g., MDMA vs. Control groups).
+
+Participants complete two functional MRI runs per session. Each run features:
+- **Emotional Blocks (22-second duration)**:
+  - **Negative Blocks** (Event code `31`): Series of threatening, high-arousal scenes.
+  - **Neutral Blocks** (Event code `51`): Series of everyday, low-arousal scenes.
+  - **Positive Blocks** (Event code `71`): Series of pleasant, rewarding scenes.
+- **Image Events (4-second duration)**:
+  - Negative images: Codes `31`, `32`, `33`, `34`.
+  - Neutral images: Codes `51`, `52`, `53`, `54`.
+  - Positive images: Codes `71`, `72`, `73`, `74`.
+- **Rest / Inter-Block Baseline (variable duration)**:
+  - Event codes `22` and `24`.
+
+---
+
+### 28-Second Initial Lag Blocks
+In the WAR paradigm, functional scan acquisition begins with an initial 28-second stabilization and baseline period prior to task onset.
+- **Mathematical Handling in `create_tr_magnitude_file.py`**:
+  When aligning external psychophysiological regressors (such as Skin Conductance Response [SCR]) with functional volumes:
+  - For `lag = 28`, the initial 28 seconds (corresponding to 14 TRs at $\text{TR} = 2.0$ s) are subtracted from event timestamps ($t' = t - 28$). Events occurring before $t'=0$ are discarded.
+  - The resulting output vector length is exactly **286 TRs** ($300 - 14 = 286$).
+  - For `lag = 0` (or sessions without initial lead-in), the scan duration is modeled as the full **300 TRs**.
+- **TR Bin Slotting Formula**:
+  $$\text{index} = \text{int}\left(\frac{\text{Time} - \text{lag}}{2.0}\right)$$
+
+---
+
+### 11-Bin TR Expansion for Autonomic SCR
+Autonomic skin conductance responses unfold over 15–25 seconds following sympathetic nervous system activation. In `war_analysis/utils/process_era_files.py` (`process_binned_era`):
+- Each emotional block start event (Codes `31`, `51`, `71`) expands into **11 consecutive TR bins** spaced by 2.0 seconds:
+  $$t_j = t + (j \times 2.0) \quad \text{for } j \in \{0, 1, 2, \dots, 10\}$$
+- This covers the entire 22-second block duration ($11 \times 2.0 = 22.0$ s), enabling high-resolution modeling of continuous autonomic arousal trajectories without assuming a canonical hemodynamic response shape.
+
+---
+
+### Image-Level SCR Delta Amplitude Modulation
+In `war_analysis/utils/process_era_files.py` (`process_image_era`):
+- Ledalab Continuous Decomposition Analysis (CDA) separates tonic electrodermal level (`CDA.Tonic`) from phasic stimulus-locked response (`Global.Mean`).
+- Baseline-corrected phasic amplitude is computed and rounded to 5 decimal places:
+  $$\text{Amplitude} = \text{round}(\text{Global.Mean} - \text{CDA.Tonic}, 5)$$
+- Negative delta amplitudes (where tonic decay exceeds phasic deflection) are strictly preserved with exact algebraic sign.
 
 ---
 
 ## Directory Structure
 
-The ecosystem is organized to separate logic, configuration, and results, promoting clarity and maintainability.
+```text
+war_analysis/
+├── analysis_configs/               # Declarative TOML configuration files
+│   ├── main_config.toml            # Global paths, subject rosters, per-session lags, and AFNI parameters
+│   └── analysis_models.toml        # First-level GLM regressor definitions & group-level models
+├── scripts/                        # Modular ShellCheck-compliant AFNI execution scripts
+│   ├── 00_create_timings.sh        # Converts BIDS event TSVs and ERA files into AFNI .1D files
+│   ├── 01_preprocess_anat.sh       # Runs sswarper2 non-linear skull-stripping & MNI normalization
+│   ├── 02_preprocess_func.sh       # Runs afni_proc.py multi-echo functional preprocessing
+│   ├── 03_run_glm.sh               # Runs first-level GLM regression and @chauffeur_afni QC rendering
+│   ├── 04_run_group_analysis.sh    # Executes 3dLMEr (3dClustSim ACF) or 3dttest++ group models
+│   └── utils_colors.sh             # ANSI color logging utility
+├── utils/                          # Specialized data preparation & format conversion utilities
+│   ├── create_tr_magnitude_file.py # Maps binned SCR events into TR magnitude vectors
+│   ├── process_era_files.py        # Ledalab ERA parser with 11-bin block expansion
+│   ├── mri_file_preprocess.py      # Raw Siemens DICOM to BIDS NIfTI converter
+│   ├── convert_qc_to_pdf.py        # Converts APQC HTML reports to PDF
+│   └── rename_subjects.py          # BIDS subject naming and folder normalization utility
+├── run_analysis.py                 # Multi-core Python CLI controller for all first-level & group jobs
+├── export_results.py               # Generates consolidated QC & GLM activation PDFs
+├── concatenate_reports.py          # Merges single-subject PDF reports into multi-subject binders
+└── README.md                       # Comprehensive pipeline documentation
+```
 
-```
-/war_analysis/
-├── analysis_configs/     # All pipeline configuration files.
-│   ├── main_config.toml  # Global settings for the pipeline.
-│   └── analysis_models.toml # Definitions for each GLM analysis model.
-├── logs/                 # Log files generated by each processing step for each subject.
-├── old_scripts/          # Original, monolithic shell scripts (archived after refactoring).
-├── scripts/              # Modular bash scripts, each handling a specific step of the pipeline.
-│   ├── 00_create_timings.sh      # Generates AFNI .1D timing files.
-│   ├── 01_preprocess_anat.sh     # Performs anatomical preprocessing (SSWarper).
-│   ├── 02_preprocess_func.sh     # Performs functional preprocessing (afni_proc.py).
-│   ├── 03_run_glm.sh             # Runs the GLM regression step (afni_proc.py).
-│   └── 04_run_group_analysis.sh  # Template for group-level analyses.
-├── utils/                # Helper Python scripts for data preparation (e.g., ERA file processing).
-│   ├── create_tr_magnitude_file.py
-│   ├── mri_file_preprocess.py
-│   ├── process_era_files.py
-│   └── rename_subjects.py
-├── run_analysis.py       # Main Python controller for all FIRST-LEVEL analyses.
-├── run_group_level.py    # Main Python controller for all GROUP-LEVEL analyses (to be implemented).
-└── README.md             # This documentation file.
-```
+> **Note on Group Analysis Architecture**: All first-level processing steps AND all group-level statistical models (`3dLMEr`, `3dttest++`) are executed through the unified controller `run_analysis.py` (via `--step group_analysis`). (The legacy standalone runner `run_group_level.py` has been consolidated directly into `run_analysis.py`).
 
 ---
 
-## Configuration
+## Prerequisites & Environment Setup
 
-The entire pipeline is controlled by two main configuration files located in `analysis_configs/`. These files allow you to define subjects, paths, and analysis-specific parameters without altering any code.
+1. **AFNI (Analysis of Functional NeuroImages)**:
+   - Must be installed and available on `PATH`.
+   - Core tools: `sswarper2`, `afni_proc.py`, `3dDeconvolve`, `3dREMLfit`, `3dLMEr`, `3dttest++`, `3dFWHMx`, `3dClustSim`, `timing_tool.py`, `@chauffeur_afni`.
+   - Requires R with `lme4`, `afex`, and `phia` packages for `3dLMEr`.
+2. **Python 3.8+**:
+   - Uses standard library `unittest` for the automated test suite.
+   - Install additional packages:
+     ```bash
+     pip install toml pandas numpy rich fpdf
+     ```
+3. **Template Datasets**:
+   - `MNI152_2009_template_SSW.nii.gz` (anatomical non-linear warping)
+   - `MNI152_2009_template.nii.gz` (functional spatial normalization & visual underlay)
+
+---
+
+## Configuration Reference
 
 ### Main Configuration (`analysis_configs/main_config.toml`)
 
-This file contains global settings that apply across the entire pipeline.
-
-**IMPORTANT**: You must edit the `input_dir` and `output_dir` paths in this file before running the pipeline for the first time.
+`main_config.toml` manages global paths, subjects, per-session lag parameters, and AFNI thresholds:
 
 ```toml
-# Absolute path to the directory containing the raw BIDS data.
-# Example: /data/raw_bids
-input_dir = "/path/to/your/bids_data"
+# Raw BIDS data directory (or GCS URI: gs://abend-lab-mri-analysis/inputs/war)
+input_dir = "/home/user/Documents/WAR/Data/Input"
 
-# Absolute path to the directory where all outputs (derivatives) will be saved.
-# This directory will contain preprocessed data, GLM results, and group analyses.
-# Example: /data/derivatives/war_analysis
-output_dir = "/path/to/your/derivatives"
+# Output derivatives directory (or GCS URI: gs://abend-lab-mri-analysis/outputs/war)
+output_dir = "/media/user/VERBATIM SD/WAR/Output"
 
-# --- AFNI Parameters ---
-# Default parameters used across most analyses.
+# Local scratch directory for fast I/O during execution
+scratch_dir = "/tmp/afni_scratch"
+
+# Automatically delete local scratch files once synced to output_dir
+cleanup_scratch = true
+
+# Keep intermediate pb00-pb04 functional preprocessing bricks (default: false)
+keep_pb00_pb04 = false
+
+# Default AFNI Preprocessing & GLM Parameters
 blur_size = 4.0
 tr = 2.0
 censor_motion_threshold = 0.5
 censor_outlier_threshold = 0.05
 
-# --- Subjects ---
-# List of subjects to be processed.
-# Each subject can have multiple sessions, each with its own specific parameters.
-
+# Subjects with cohort groupings and session-specific lag parameters
 [[subjects]]
 id = "sub-AL01"
 group = "MDMA"
 sessions = [
-  { id = 1, lag_block_1 = 10, lag_block_2 = 12 }, # Session 1 with specific lags
-  { id = 2, lag_block_1 = 9,  lag_block_2 = 11 }  # Session 2 with different lags
+  { id = 1, lag_block_1 = 10, lag_block_2 = 12 },
+  { id = 2, lag_block_1 = 9,  lag_block_2 = 11 }
 ]
 
 [[subjects]]
@@ -108,47 +182,15 @@ group = "Control"
 sessions = [
   { id = 1, lag_block_1 = 8, lag_block_2 = 8 }
 ]
-
-[[subjects]]
-id = "sub-AL03"
-group = "MDMA"
-sessions = [
-  { id = 1 } # No lag specified for this session, will default to 0.
-]
 ```
 
-### Analysis Model Configuration (`analysis_configs/analysis_models.toml`)
+### Analysis Models (`analysis_configs/analysis_models.toml`)
 
-This file defines the specific parameters for each first-level GLM variation. Each `[model_name]` section represents a distinct analysis. You can add, remove, or modify analyses here without changing any Python or Bash code.
-
-**Structure of a Model Entry:**
+Defines first-level GLM variations and group analyses:
 
 ```toml
-[model_name]
-description = "A brief description of what this model analyzes."
-stim_files = ["path/to/stim_file1.1D", "path/to/stim_file2.1D"] # Paths relative to subject's func/timings directory.
-basis = "BLOCK(duration,onset_delay)" # AFNI basis function (e.g., BLOCK, GAM, TENT).
-glt = [ # Optional: General Linear Tests (contrasts) to compute.
-    { sym = "LABEL1 - LABEL2", label = "contrast_name" },
-    { sym = "LABEL1 + LABEL2", label = "sum_contrast" }
-]
-stim_types = "AM1" # Optional: AFNI stimulus type (e.g., AM1, AM2, file). Defaults to AM1 if not specified.
-subjects = ["sub-AL01", "sub-AL03"] # Optional: List of subjects for first-level analysis. Overrides global subject list.
-
-# For 3dLMEr group analyses, define the data table rows explicitly:
-# data_table_rows = [
-#     { stimulus = "LABEL1", contrast = "LABEL1_Coef" },
-#     { stimulus = "LABEL2", contrast = "LABEL2_Coef" }
-# ]
-```
-
-**Examples:**
-
-*   **`by_block` Model (Emotional Blocks):**
-    This model analyzes the BOLD response to different emotional blocks (negative, positive, neutral) and a rest condition.
-
-    ```toml
-    [by_block]
+# 1. Emotional Block Model
+[by_block]
 description = "GLM analysis by emotional block (Negative, Positive, Neutral)."
 stim_files = [
     "timings/negative_block.1D",
@@ -157,191 +199,190 @@ stim_files = [
     "timings/rest.1D"
 ]
 stim_labels = ["neg_blck", "pos_blck", "neut_blck", "rest"]
-basis = "BLOCK(22,1)" # Block duration of 22s, onset delay of 1s.
+basis = "BLOCK(22,1)"
 glt = [
     { sym = "neg_blck - neut_blck", label = "neg-neut_blck" },
     { sym = "neg_blck - rest", label = "neg_blck-rest" },
     { sym = "pos_blck - neut_blck", label = "pos-neut_blck" },
     { sym = "neg_blck - pos_blck", label = "neg-pos_blck" }
 ]
-```
 
-*   **`by_scr_bins` Model (Binned SCR Amplitude Modulation):**
-    This model uses binned Skin Conductance Response (SCR) values to amplitude-modulate the BOLD response. Note the `stim_types = "file"` which is a special AFNI option for external amplitude files.
+# Group-Level 3dLMEr Linear Mixed Effects
+[[by_block.group_analyses]]
+name = "mdma_vs_control_s1"
+type = "3dLMEr"
+model = "group*stimulus+(1|Subj)"
+description = "Compare MDMA vs Control groups in session 1."
+groups = ["MDMA", "Control"]
+sessions = [1]
+data_table_rows = [
+    { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
+    { stimulus = "pos",  contrast = "pos_blck#0_Coef" },
+    { stimulus = "neut", contrast = "neut_blck#0_Coef" }
+]
+glt = [
+    { sym = "group : 1*MDMA -1*Control stimulus : 1*neg", label = "neg_mdma_gt_control" }
+]
 
-    ```toml
-    [by_scr_bins]
-description = "GLM analysis using binned SCR as a regressor."
-stim_files = ["timings/scr_binned.1D"]
-stim_labels = ["SCR"]
-basis = "GAM" # Gamma variate basis function.
-stim_types = "file" # Indicates that the .1D file already contains amplitude information.
-glt = [] # No specific GLTs defined for this example.
+# Group-Level 3dttest++ One-Sample T-Test
+[[by_block.group_analyses]]
+name = "mdma_s1_neg_vs_neut"
+type = "3dttest++"
+description = "One-sample t-test for MDMA group in session 1 on neg-neut contrast."
+groups = ["MDMA"]
+sessions = [1]
+contrast = "neg-neut_blck#0_Coef"
+setA_label = "MDMA_S1_NegVsNeut"
 ```
 
 ---
 
-## Workflow
+## Environment Variables
 
-The pipeline is executed via Python controller scripts that orchestrate the modular Bash scripts.
+| Environment Variable | Overrides | Description |
+| :--- | :--- | :--- |
+| `MRI_INPUT_DIR` | `input_dir` | Dynamically points to raw BIDS input data (local path or `gs://...`). |
+| `MRI_OUTPUT_DIR` | `output_dir` | Specifies derivatives destination (local path or `gs://...`). |
+| `MRI_REPORTS_DIR` | Destination root | Specifies destination for exported QC PDFs in `export_results.py`. |
+| `KEEP_PB00_PB04` | `keep_pb00_pb04` | Set to `"1"` to retain intermediate functional preprocessing bricks (`pb00`–`pb04`). Defaults to `"0"`. |
+
+---
+
+## AFNI Neuroimaging Parameters & Rationale
+
+### Repetition Time (TR = 2.0s)
+- **Value**: `tr = 2.0` (seconds).
+- **Physical Rationale**: Defines functional sampling interval ($f_{\text{Nyq}} = 0.25$ Hz). Accommodates multi-slice multi-echo EPI readouts while precisely binning behavioral image events (4 s duration = 2 TRs) and block events (22 s duration = 11 TRs).
+
+### Multi-Echo Echo Times & Optimal Combination (OC)
+- **Values**: `-echo_times 13.6 25.96 38.3` (ms) with `-combine_method OC`.
+- **Physical Rationale**:
+  In threat appraisal paradigms, primary regions of interest include the **amygdala**, **ventromedial prefrontal cortex (vmPFC)**, and **anterior insula**. These regions border air-tissue interfaces (nasopharyngeal cavity, sphenoid sinuses) and suffer severe susceptibility-induced gradient dropout at conventional single-echo readouts (TE ~30 ms).
+  - Short echo (13.6 ms) retains strong signal in dropout-prone vmPFC and amygdala.
+  - Middle and long echoes (25.96 ms, 38.3 ms) maximize BOLD sensitivity in dorsal cortical areas.
+  - **Optimal Combination (`OC`)** weights each voxel according to its estimated $T_2^*$ decay rate:
+    $$w(TE_m) = \frac{TE_m \cdot \exp(-TE_m / T_2^*)}{\sum_{j=1}^3 TE_j \cdot \exp(-TE_j / T_2^*)}$$
+    This recovers signal in ventral affective circuits while suppressing scanner drift.
+
+### Non-Linear Anatomical Registration (`sswarper2` & Cost Function `lpa`)
+- **Parameters**: `sswarper2 -giant_move -cost_nl_final lpa -minp 8`.
+- **Rationale**:
+  - High-precision anatomical normalization to `MNI152_2009_template_SSW.nii.gz`.
+  - **Local Pearson Correlation (`lpa`)**: Computes local Pearson correlation across moving spherical patches, preventing global contrast distortions from corrupting subcortical alignment (amygdalar and hippocampal subnuclei).
+  - `-giant_move`: Resolves large initial positional or angular offsets between native head position and MNI coordinates.
+  - `-minp 8`: Enforces 8 mm patch sizes for numerical stability.
+
+### Spatial Smoothing (4.0 mm FWHM)
+- **Parameter**: `-blur_size 4` (mm FWHM isotropic Gaussian kernel).
+- **Rationale**:
+  Affective neuroimaging requires anatomical precision: the basolateral vs. central amygdala and bed nucleus of the stria terminalis (BNST) are small structures spanning only several millimeters. An aggressive smoothing kernel (e.g., 6–8 mm) causes signal blending with adjacent parahippocampal gyrus and CSF ventricles. A conservative 4.0 mm blur preserves spatial specificity while improving SNR.
+
+### Motion Censoring (0.5 mm Euclidean Norm)
+- **Parameter**: `-regress_censor_motion 0.5`.
+- **Formulation**:
+  $$\text{enorm}_t = \sqrt{(\Delta \text{roll}_t)^2 + (\Delta \text{pitch}_t)^2 + (\Delta \text{yaw}_t)^2 + (\Delta dS_t)^2 + (\Delta dL_t)^2 + (\Delta dP_t)^2}$$
+- Volumes exceeding $\text{enorm}_t > 0.5$ mm are excluded from GLM regression, preventing motion-induced spurious correlations in affective contrast estimates.
+
+### Outlier Censoring (5% Outlier Fraction)
+- **Parameter**: `-regress_censor_outliers 0.05`.
+- TRs where $> 5\%$ of automasked voxels exhibit severe signal deviations (flagged by `3dToutcount`) are scrubbed from GLM estimation.
+
+### Intermediate Functional Brick Cleanup (`KEEP_PB00_PB04`)
+- Intermediate functional processing bricks (`pb00` through `pb04`) and temporary `rm.*` files are automatically deleted upon completion when `KEEP_PB00_PB04=0`.
+- The final scaled brick (`pb05.scale`), motion regressors, censor vectors, `fitts`, `errts`, and `stats.*` datasets are **strictly preserved**, saving 15–20 GB per subject.
+
+---
+
+## Workflow & Step Organization
 
 ### First-Level Analysis (`run_analysis.py`)
+Executes first-level processing for individual subjects:
+1. `create_timings` (`00_create_timings.sh`): Generates AFNI `.1D` timing files from event TSVs and ERA files.
+2. `preprocess_anat` (`01_preprocess_anat.sh`): Runs `sswarper2` skull-stripping and non-linear MNI warping.
+3. `preprocess_func` (`02_preprocess_func.sh`): Runs multi-echo `afni_proc.py` functional preprocessing.
+4. `glm` (`03_run_glm.sh`): Runs first-level GLM regression for specified models.
+5. `preprocess`: Composite step running `create_timings` $\rightarrow$ `preprocess_anat` $\rightarrow$ `preprocess_func`.
+6. `all`: Composite step running `preprocess` $\rightarrow$ `glm`.
 
-The `run_analysis.py` script manages all first-level processing steps for individual subjects. It reads configurations from `analysis_configs/` and executes the appropriate scripts in `scripts/`.
+### Group-Level Analysis (`run_analysis.py --step group_analysis`)
+Executes group-level statistical models using `--step group_analysis --analysis <model> --group_model <name>`:
+- Automatically filters eligible subjects by group and session.
+- Validates availability of first-level contrast sub-bricks.
+- Dynamically compiles `data_table.txt` for `3dLMEr` or compiles input dataset arrays for `3dttest++`.
+- Computes spatial autocorrelation function (ACF) residual smoothness via `3dFWHMx -acf` and attaches `3dClustSim` cluster extent tables.
+- Renders automated publication montage images via `@chauffeur_afni`.
 
-**Key Steps (and their corresponding scripts):**
+---
 
-1.  **`create_timings` (`00_create_timings.sh`):**
-    *   **Purpose:** Converts raw event `.tsv` files (generated during data acquisition) into AFNI-compatible `.1D` timing files. It also processes ERA files (from Ledalab) to create amplitude-modulated timing files (e.g., `scr_binned.1D`).
-    *   **Inputs:** Event `.tsv` files, ERA files (e.g., `sub-XX_era_4s.txt`, `sub-XX_era_aggregated.txt`).
-    *   **Outputs:** `.1D` timing files in `input_dir/sub-XX/ses-YY/func/timings/`.
+## Statistical Modeling Architecture
 
-2.  **`preprocess_anat` (`01_preprocess_anat.sh`):**
-    *   **Purpose:** Performs anatomical preprocessing using `sswarper2`. This step aligns the subject's T1-weighted anatomical scan to a standard MNI template.
-    *   **Inputs:** Subject's T1w NIfTI file (e.g., `input_dir/sub-XX/ses-YY/anat/sub-XX_ses-YY_T1w.nii.gz`), MNI template.
-    *   **Outputs:** Warped anatomical images and transformation matrices in `output_dir/sub-XX/ses-YY/anat_warped/`.
+### First-Level Models
+- **`by_block`**:
+  - Stimulus files: `negative_block.1D`, `positive_block.1D`, `neutral_block.1D`, `rest.1D`.
+  - Basis: `BLOCK(22,1)` (22-second block duration, 1-second onset delay).
+  - Contrasts: `neg-neut_blck`, `neg_blck-rest`, `pos-neut_blck`, `neg-pos_blck`.
+- **`by_image`**:
+  - Stimulus files: `negative_image.1D`, `positive_image.1D`, `neutral_image.1D`, `rest.1D`.
+  - Basis: `BLOCK(4,1)` (4-second image presentation).
+  - Contrasts: `neg-neut_image`, `pos-neut_image`, `neg-pos_image`.
+- **`by_scr_bins`**:
+  - Stimulus files: `timings/scr_binned.1D`.
+  - Basis: `GAM` with `stim_types = "file"` (external TR magnitude regressor).
 
-3.  **`preprocess_func` (`02_preprocess_func.sh`):**
-    *   **Purpose:** Executes the initial functional preprocessing steps using `afni_proc.py`. This includes slice timing correction, motion correction, alignment to anatomical space, spatial normalization to MNI, blurring, and scaling. This step creates a "clean" functional dataset ready for any GLM analysis.
-    *   **Inputs:** Raw functional BOLD NIfTI files (e.g., `input_dir/sub-XX/ses-YY/func/sub-XX_ses-YY_task-war_run-Z_echo-E_bold.nii.gz`), preprocessed anatomical data.
-    *   **Outputs:** Preprocessed functional data and quality control (QC) reports in `output_dir/sub-XX/ses-YY/func_preproc/`.
+---
 
-4.  **`glm` (`03_run_glm.sh`):**
-    *   **Purpose:** Runs the General Linear Model (GLM) regression analysis using `afni_proc.py`'s `regress` block. It applies the specified stimulus timing, labels, basis functions, and contrasts defined in `analysis_models.toml`.
-    *   **Inputs:** Preprocessed functional data from `preprocess_func`, `.1D` timing files from `create_timings`.
-    *   **Outputs:** Statistical maps (e.g., `stats.sub-XX_modelname+tlrc`), masked statistical maps, and chauffeur images in `output_dir/sub-XX/ses-YY/glm/model_name/`.
+### Group Linear Mixed Effects (`3dLMEr` with 3dClustSim ACF)
+For complex multi-group, multi-session designs with repeated measures or missing sessions:
+- **AFNI Command**: `3dLMEr -prefix <prefix> -mask <mask> -SS_type 3 -model "group*stimulus+(1|Subj)" -dataTable @data_table.txt -resid <resid>`
+- **Cluster Extent Thresholding**:
+  1. Residuals (`<prefix>_resid+tlrc`) are evaluated with `3dFWHMx -mask <mask> -acf NULL`.
+  2. Non-Gaussian ACF parameters ($a, b, c$) are passed to `3dClustSim`:
+     ```bash
+     3dClustSim -mask <mask> -acf a b c -both -prefix <prefix>_ClustSim
+     ```
+  3. Generated cluster-size tables are permanently attached to the group dataset headers via the generated `.cmd` script.
 
-**Example Usage for `run_analysis.py`:**
+---
 
-*   **Run a single step for one subject:**
-    ```bash
-    python run_analysis.py --subject sub-AL01 --step create_timings
-    python run_analysis.py --subject sub-AL01 --step preprocess_anat
-    python run_analysis.py --subject sub-AL01 --step preprocess_func
-    ```
+### Group T-Tests (`3dttest++`)
+For simple one-sample or two-sample group comparisons:
+- **AFNI Command**: `3dttest++ -prefix <prefix> -mask <mask> -setA <label> <files...>`
+- **WAR Invariance Note**: In accordance with the WAR pipeline design, `04_run_group_analysis.sh` omits `-clustsim` on `3dttest++`, enabling custom downstream thresholding or permutation simulations.
 
-*   **Run the entire preprocessing pipeline for one subject:**
-    ```bash
-    python run_analysis.py --subject sub-AL01 --step preprocess
-    ```
+---
 
-*   **Run a specific GLM analysis for one subject (assumes preprocessing is complete):**
-    ```bash
-    python run_analysis.py --subject sub-AL01 --analysis by_block --step glm
-    ```
+## CLI Usage Guide
 
-*   **Run the ENTIRE pipeline for a specific analysis (for all its relevant subjects defined in `main_config.toml` or `analysis_models.toml`):**
-    ```bash
-    python run_analysis.py --analysis by_block --step all
-    ```
+### Main Controller (`run_analysis.py`)
 
-*   **Run in Parallel**: To speed up processing, use the `--n_procs` argument. The command below runs the full pipeline for the `by_block` analysis across all its subjects, using 4 cores.
-    ```bash
-    python run_analysis.py --analysis by_block --step all --n_procs 4
-    ```
+```text
+usage: run_analysis.py [-h] [--step {create_timings,preprocess_anat,preprocess_func,glm,preprocess,all,group_analysis} ...]
+                       [--subject SUBJECT [SUBJECT ...]] [--analysis ANALYSIS [ANALYSIS ...]]
+                       [--group_model GROUP_MODEL] [--session SESSION] [--n_procs N_PROCS]
+                       [--scratch_dir SCRATCH_DIR] [--clean_scratch] [--no_scratch]
+                       [--input_dir INPUT_DIR] [--output_dir OUTPUT_DIR] [--keep_pb00_pb04]
+```
 
-*   **Specify a different session:**
-    ```bash
-    python run_analysis.py --subject sub-AL01 --session 2 --step all --analysis by_block
-    ```
-
-### Group-Level Analysis (`run_analysis.py`)
-
-Group-level analyses are integrated into the main `run_analysis.py` script via the `group_analysis` step. This allows for configurable and reproducible group comparisons using the results from the first-level GLMs.
-
-**Key Features:**
-
--   **Configurable Models**: Define complex group analyses directly in `analysis_models.toml`.
--   **Multiple Analysis Types**: Supports both one-sample t-tests (`3dttest++`) and linear mixed-effects modeling (`3dLMEr`).
--   **Automatic Data Handling**: The script automatically finds subjects, filters them by group, collects the correct first-level statistical files, and generates the data tables required by `3dLMEr`.
--   **Flexible Subject Selection**: Specify exact lists of subjects for group analyses, either globally or per group.
-
-**Configuration for Group Analysis (in `analysis_configs/analysis_models.toml`):**
-
-Within a first-level model (e.g., `[by_block]`), you can define a list of group analyses using the `[[by_block.group_analyses]]` table format.
-
-*   **`3dLMEr` Example (Between-Groups):**
-
-    ```toml
-    [[by_block.group_analyses]]
-    name = "mdma_vs_control_s1" # A unique name for this group model
-    type = "3dLMEr"
-    model = "group*stimulus+(1|Subj)" # The statistical model for 3dLMEr
-    description = "Compare MDMA vs Control groups in session 1."
-    groups = ["MDMA", "Control"] # Subject groups from main_config.toml
-    sessions = [1] # Which session(s) to include
-
-    # Define the rows for the 3dLMEr data table explicitly.
-    # Each entry links a stimulus label (for the 'stimulus' factor in the LME model)
-    # to its corresponding first-level contrast sub-brick.
-    data_table_rows = [
-        { stimulus = "neg",  contrast = "neg_blck#0_Coef" },
-        { stimulus = "pos",  contrast = "pos_blck#0_Coef" },
-        { stimulus = "neut", contrast = "neut_blck#0_Coef" }
-    ]
-    glt = [ # General linear tests for the group model
-        { sym = "group : 1*MDMA -1*Control stimulus : 1*neg", label = "neg_mdma_gt_control" }
-    ]
-    ```
-
-*   **`3dttest++` Example (One-Sample T-Test):**
-
-    ```toml
-    [[by_block.group_analyses]]
-    name = "mdma_s1_neg_vs_neut"
-    type = "3dttest++"
-    description = "One-sample t-test for the MDMA group in session 1 on the neg-neut contrast."
-    groups = ["MDMA"]
-    sessions = [1]
-    contrast = "neg-neut_blck#0_Coef" # The specific sub-brick from the first-level GLT to test.
-    setA_label = "MDMA_S1_NegVsNeut" # Label for the output dataset.
-    ```
-
-### Custom Subject Selection for Group Analyses
-
-For group analyses, you can specify a custom list of subjects to include, overriding the default behavior of including all subjects from the defined `groups`. This is done using the optional `subjects` field within the `[[...group_analyses]]` table.
-
-*   **Single Group Analysis (List of Subjects):**
-    If your group analysis involves a single group, you can provide a simple list of subject IDs.
-
-    ```toml
-    [[by_block.group_analyses]]
-    name = "mdma_session_comparison"
-    type = "3dLMEr"
-    # ...
-    groups = ["MDMA"]
-    sessions = [1, 2]
-    subjects = ["sub-MD01", "sub-MD02", "sub-MD05"] # Only these subjects will be included.
-    # ...
-    ```
-
-*   **Multi-Group Analysis (Table of Subjects per Group):**
-    If your group analysis involves multiple groups, or if you prefer more explicit control, you can provide a table where keys are group names (matching those in the `groups` array) and values are lists of subject IDs for each respective group.
-
-    ```toml
-    [[by_block.group_analyses]]
-    name = "mdma_vs_control_s1"
-    type = "3dLMEr"
-    # ...
-    groups = ["MDMA", "Control"]
-    sessions = [1]
-    subjects = { MDMA = ["sub-MD01", "sub-MD02", "sub-MD03"], Control = ["sub-CT01", "sub-CT02", "sub-CT04"] }
-    # ...
-    ```
-
-**Example Usage for Group Analysis:**
-
-To run a group analysis, you must specify the `group_analysis` step, the parent first-level analysis, and the name of the group model to run.
+#### CLI Examples:
 
 ```bash
-# Run the 3dLMEr model comparing MDMA and Control groups
-python run_analysis.py \
+# 1. Run all preprocessing for a single subject
+python war_analysis/run_analysis.py --subject sub-AL01 --step preprocess
+
+# 2. Run first-level GLM for the by_block model across 4 cores
+python war_analysis/run_analysis.py --step glm --analysis by_block --n_procs 4
+
+# 3. Run complete first-level pipeline for multiple subjects
+python war_analysis/run_analysis.py --subject sub-AL01 sub-AL02 sub-AL03 --step all --n_procs 3
+
+# 4. Run group analysis (3dLMEr) comparing MDMA vs Control
+python war_analysis/run_analysis.py \
     --step group_analysis \
     --analysis by_block \
     --group_model mdma_vs_control_s1
 
-# Run the 3dttest++ model for the MDMA group
-python run_analysis.py \
+# 5. Run group analysis (3dttest++) one-sample t-test
+python war_analysis/run_analysis.py \
     --step group_analysis \
     --analysis by_block \
     --group_model mdma_s1_neg_vs_neut
@@ -349,86 +390,118 @@ python run_analysis.py \
 
 ---
 
-## Output Structure
+### Results & QC Exporter (`export_results.py`)
 
-The pipeline generates a structured output directory within the `output_dir` specified in `main_config.toml`.
+Exports preprocessed APQC HTML reports and first-level GLM activation maps to consolidated PDF documents:
 
+```bash
+python war_analysis/export_results.py --subject sub-AL01 --output_dir "/media/user/VERBATIM SD/WAR/Output"
 ```
-/your_output_dir/
+
+---
+
+### Multi-Subject Report Merger (`concatenate_reports.py`)
+
+Merges individual PDF reports into a unified project-level QC binder:
+
+```bash
+python war_analysis/concatenate_reports.py \
+    --reports_dir "/media/user/VERBATIM SD/WAR/Output/reports" \
+    --output "war_consolidated_qc_report.pdf"
+```
+
+---
+
+### TR Magnitude Generator (`utils/create_tr_magnitude_file.py`)
+
+Converts binned TSV events into a single-column 1D TR magnitude file:
+
+```bash
+python war_analysis/utils/create_tr_magnitude_file.py \
+    --binned_tsv "binned_scr_run-1.txt" \
+    --lag 28 \
+    --output "timings/scr_binned_run-1.1D"
+```
+
+---
+
+### Ledalab ERA Processor (`utils/process_era_files.py`)
+
+Processes Ledalab Event-Related Analysis (ERA) exports into image-level and 11-bin block expansion timing files:
+
+```bash
+python war_analysis/utils/process_era_files.py \
+    --era_path "/path/to/sub-AL01_era.txt" \
+    --events_path "/path/to/sub-AL01/ses-1/func" \
+    --output_path "/path/to/sub-AL01/ses-1/func/timings" \
+    --blocks 2
+```
+
+---
+
+### DICOM to BIDS Converter (`utils/mri_file_preprocess.py`)
+
+Converts raw Siemens console DICOM series into BIDS-compliant NIfTI layout:
+
+```bash
+python war_analysis/utils/mri_file_preprocess.py \
+    --dicom_dir "/path/to/raw_dicoms" \
+    --bids_dir "/path/to/BIDS_input" \
+    --subject "sub-AL01" \
+    --session 1
+```
+
+---
+
+## Output Directory Structure
+
+```text
+/output_dir/
 ├── sub-AL01/
 │   ├── ses-1/
-│   │   ├── anat_warped/      # Output from 01_preprocess_anat.sh
-│   │   ├── func_preproc/     # Output from 02_preprocess_func.sh
-│   │   └── glm/
-│   │       ├── by_block/     # Output from 03_run_glm.sh for 'by_block' model
-│   │       └── by_scr_bins/  # Output from 03_run_glm.sh for 'by_scr_bins' model
+│   │   ├── anat_warped/                      # Output from 01_preprocess_anat.sh
+│   │   │   ├── anatSS.sub-AL01.nii           # Skull-stripped anatomical in native space
+│   │   │   ├── anatQQ.sub-AL01.nii           # Non-linearly warped anatomical in MNI space
+│   │   │   ├── anatQQ.sub-AL01.aff12.1D      # Affine alignment matrix
+│   │   │   └── anatQQ.sub-AL01_WARP.nii      # Displacement warp field
+│   │   ├── func_preproc/                     # Output from 02_preprocess_func.sh
+│   │   │   └── sub-AL01_preproc.results/
+│   │   │       ├── pb05.sub-AL01_preproc.r01.scale+tlrc.HEAD # Scaled functional timeseries
+│   │   │       ├── dfile_rall.1D             # Motion parameters
+│   │   │       ├── censor_sub-AL01_combined_2.1D # Motion and outlier censor vector
+│   │   │       ├── mask_epi_anat.sub-AL01+tlrc.HEAD # Intersection EPI-anatomical mask
+│   │   │       └── QC_sub-AL01/              # APQC HTML quality review
+│   │   └── glm/                              # Output from 03_run_glm.sh
+│   │       ├── by_block/
+│   │       │   ├── stats.sub-AL01_by_block+tlrc.HEAD # Statistical contrast bricks
+│   │       │   ├── fitts.sub-AL01_by_block+tlrc.HEAD # Full model fit
+│   │       │   ├── errts.sub-AL01_by_block+tlrc.HEAD # Residual timeseries
+│   │       │   └── QC/                       # @chauffeur_afni 3x3 axial montage PNGs
+│   │       └── by_image/
+│   │           └── ...
 │   └── ses-2/
 │       └── ...
-├── sub-AL02/
-│   └── ...
-└── group_analysis/
-    ├── by_block/             # Parent analysis for the group models
-    │   ├── mdma_vs_control_s1/ # Results for this group model
-    │   │   ├── result_mdma_vs_control_s1+tlrc.HEAD
-    │   │   ├── result_mdma_vs_control_s1+tlrc.BRIK
-    │   │   ├── group_mask+tlrc.HEAD
-    │   │   └── data_table.txt
-    │   └── mdma_s1_neg_vs_neut/
-    │       └── ...
-    └── ...
+└── group_analysis/                           # Output from 04_run_group_analysis.sh
+    └── by_block/
+        ├── mdma_vs_control_s1/
+        │   ├── result_mdma_vs_control_s1+tlrc.HEAD # 3dLMEr statistics
+        │   ├── result_mdma_vs_control_s1_resid+tlrc.HEAD # Residuals for ACF
+        │   ├── group_mask+tlrc.HEAD          # Overlap group mask
+        │   ├── data_table.txt                # 3dLMEr input data table
+        │   └── result_mdma_vs_control_s1_images/ # @chauffeur_afni group figures
+        └── mdma_s1_neg_vs_neut/
+            ├── result_mdma_s1_neg_vs_neut+tlrc.HEAD # 3dttest++ statistics
+            └── ...
 ```
 
 ---
 
-## Advanced Usage
+## Quality Control & Verification
 
-### Adding a New Analysis Model
-
-To add a new first-level analysis:
-
-1.  Open `analysis_configs/analysis_models.toml`.
-2.  Add a new `[model_name]` entry, defining its `description`, `stim_files`, `stim_labels`, `basis`, and optional `glt` and `stim_types`.
-3.  Ensure that the `.1D` timing files specified in `stim_files` are correctly generated by `00_create_timings.sh` or are otherwise available in the subject's `func/timings/` directory. You might need to modify `00_create_timings.sh` or add a new helper script in `utils/` if new types of timing files are required.
-4.  You can then run it immediately using `run_analysis.py`:
-    `python run_analysis.py --analysis my_new_model --step all`
-
-### Running Specific Subjects
-
-Both `run_analysis.py` and `run_group_level.py` accept a `--subject` argument to process only a single subject, or you can define a `subjects` array within an `analysis_models.toml` entry to run a model on a specific subset of subjects.
-
-*   **Override config for a single run:**
-    ```bash
-    python run_analysis.py --analysis by_block --step glm --subject sub-AL05
-    ```
-*   **Define subjects within `analysis_models.toml`:**
-    ```toml
-    [special_analysis]
-description = "A model for a specific subset of subjects."
-stim_files = ["timings/special.1D"]
-stim_labels = ["SPECIAL"]
-basis = "BLOCK(10,0)"
-subjects = ["sub-AL01", "sub-AL03", "sub-AL07"] # This model will ONLY run for these subjects.
-    ```
-
----
-
-## Troubleshooting
-
-*   **`input_dir` or `output_dir` not set:** Ensure these paths are correctly defined in `analysis_configs/main_config.toml`. They must be absolute paths.
-*   **AFNI commands not found:** Verify that AFNI is installed and its binaries are in your system's PATH environment variable.
-*   **TOML parsing errors:** Check `analysis_configs/*.toml` files for syntax errors (e.g., missing quotes, incorrect array/table formatting).
-*   **Script not found errors:** Ensure the `scripts/` and `utils/` directories are correctly populated and that the Python controller can locate the Bash scripts.
-*   **Log files:** Always check the `logs/` directory for detailed output and error messages from individual script executions.
-
----
-
-## Contributing
-
-To extend or modify the pipeline:
-
-1.  **New Preprocessing/GLM Step:** Create a new Bash script in `scripts/` (e.g., `0X_new_step.sh`). Ensure it takes `--subject`, `--session`, `--input`, and `--output` arguments consistently. Add it to the `script_map` in `run_analysis.py` and define a new `--step` choice.
-2.  **New Analysis Model:** Define it in `analysis_models.toml` as described above.
-3.  **New Utility Function:** Add Python helper scripts to `utils/`.
-4.  **Group Analysis:** Implement the logic within `04_run_group_analysis.sh` and integrate it with `run_group_level.py`.
-
-Always strive for modularity and reusability. Test your changes thoroughly.
+1. **Automated Regression Suite**:
+   ```bash
+   python3 -m unittest discover -s tests -v
+   ```
+   Ensures 100% command invariance for `sswarper2`, `afni_proc.py`, `3dttest++`, `3dLMEr`, and exact mathematical equivalence for SCR timing generation.
+2. **APQC HTML Verification**: Preprocessing review pages are generated automatically in `func_preproc/sub-XXX_preproc.results/QC_sub-XXX/index.html`.
+3. **Chauffeur Axial Montages**: Rendered with clusterization (`-NN 2 -clust_nvox 35`) and bilateral $p < 0.05$ thresholding for immediate visual artifact detection.

@@ -3,12 +3,13 @@
 # --- Script: 02_preprocess_func.sh ---
 # Description: Runs functional preprocessing using afni_proc.py, creating analysis-ready datasets.
 
-set -e # Exit immediately if a command exits with a non-zero status.
+set -euo pipefail
 
 # Get the directory where the script is located
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 
 # Source the color utility script
+# shellcheck source=./utils_colors.sh
 source "${SCRIPT_DIR}/utils_colors.sh"
 
 # Default values
@@ -21,17 +22,35 @@ RUNS=5 # Default number of runs
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
-        --subject) SUBJECT="$2"; shift 2;; 
-        --session) SESSION="$2"; shift 2;; 
-        --input) INPUT_DIR="$2"; shift 2;; 
-        --output) OUTPUT_DIR="$2"; shift 2;; 
-        --runs) RUNS="$2"; shift 2;; 
-        *) log_error "Unknown option: $1"; exit 1;; 
+        --subject)
+            SUBJECT="$2"
+            shift 2
+            ;;
+        --session)
+            SESSION="$2"
+            shift 2
+            ;;
+        --input)
+            INPUT_DIR="$2"
+            shift 2
+            ;;
+        --output)
+            OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        --runs)
+            RUNS="$2"
+            shift 2
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            exit 1
+            ;;
     esac
 done
 
 # Validate required arguments
-if [ -z "$SUBJECT" ] || [ -z "$SESSION" ] || [ -z "$INPUT_DIR" ] || [ -z "$OUTPUT_DIR" ]; then
+if [[ -z "${SUBJECT}" ]] || [[ -z "${SESSION}" ]] || [[ -z "${INPUT_DIR}" ]] || [[ -z "${OUTPUT_DIR}" ]]; then
     log_error "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir> [--runs <N>]"
     exit 1
 fi
@@ -40,20 +59,20 @@ SESSION_PREFIX="ses-${SESSION}"
 ANAT_WARPED_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/anat_warped"
 FUNC_PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc"
 
-# Find the MNI template
+# Find the MNI template across candidate search paths
 MNI_TEMPLATE=""
 for candidate in \
     "/opt/afni_templates/MNI152_2009_template.nii.gz" \
     "${SCRIPT_DIR}/../MNI152_2009_template.nii.gz" \
     "${INPUT_DIR}/MNI152_2009_template.nii.gz" \
     "${INPUT_DIR}/../MNI152_2009_template.nii.gz"; do
-    if [ -f "$candidate" ]; then
-        MNI_TEMPLATE="$candidate"
+    if [[ -f "${candidate}" ]]; then
+        MNI_TEMPLATE="${candidate}"
         break
     fi
 done
 
-if [ -z "$MNI_TEMPLATE" ] || [ ! -f "$MNI_TEMPLATE" ]; then
+if [[ -z "${MNI_TEMPLATE}" ]] || [[ ! -f "${MNI_TEMPLATE}" ]]; then
     log_error "MNI152_2009_template.nii.gz not found."
     exit 1
 fi
@@ -61,28 +80,30 @@ fi
 print_header "Starting Functional Preprocessing for ${SUBJECT}, ${SESSION_PREFIX}"
 
 # Clean up previous output directory
-if [ -d "$FUNC_PREPROC_DIR" ]; then
+if [[ -d "${FUNC_PREPROC_DIR}" ]]; then
     log_warn "Found existing func_preproc folder, deleting it: ${FUNC_PREPROC_DIR}"
-    rm -rf "$FUNC_PREPROC_DIR"
+    rm -rf "${FUNC_PREPROC_DIR}"
 fi
 
 # Create the output directory and cd into it
-mkdir -p "$FUNC_PREPROC_DIR"
-cd "$FUNC_PREPROC_DIR"
+mkdir -p "${FUNC_PREPROC_DIR}"
+cd "${FUNC_PREPROC_DIR}"
 
-# Construct -dsets_me_run argument
-DSETS=""
-for i in $(seq 1 $RUNS); do
-    DSETS+="-dsets_me_run \
-        ${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func/${SUBJECT}_${SESSION_PREFIX}_task-tim_run-${i}_echo-1_bold.nii.gz \
-        ${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func/${SUBJECT}_${SESSION_PREFIX}_task-tim_run-${i}_echo-2_bold.nii.gz \
-        ${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func/${SUBJECT}_${SESSION_PREFIX}_task-tim_run-${i}_echo-3_bold.nii.gz "
+# Construct -dsets_me_run argument array dynamically across runs
+DSETS=()
+for i in $(seq 1 "${RUNS}"); do
+    DSETS+=(
+        "-dsets_me_run"
+        "${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func/${SUBJECT}_${SESSION_PREFIX}_task-tim_run-${i}_echo-1_bold.nii.gz"
+        "${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func/${SUBJECT}_${SESSION_PREFIX}_task-tim_run-${i}_echo-2_bold.nii.gz"
+        "${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func/${SUBJECT}_${SESSION_PREFIX}_task-tim_run-${i}_echo-3_bold.nii.gz"
+    )
 done
 
 log_info "Running afni_proc.py..."
 afni_proc.py \
     -subj_id "${SUBJECT}_preproc" \
-    ${DSETS} \
+    "${DSETS[@]}" \
     -echo_times 13.6 25.96 38.3 \
     -copy_anat "${ANAT_WARPED_DIR}/anatSS.${SUBJECT}.nii" \
     -anat_has_skull no \
@@ -99,7 +120,7 @@ afni_proc.py \
     -mask_segment_anat yes \
     -combine_method OC \
     -blur_size 4 \
-    -tlrc_base "$MNI_TEMPLATE" \
+    -tlrc_base "${MNI_TEMPLATE}" \
     -tlrc_NL_warp \
     -tlrc_NL_warped_dsets \
         "${ANAT_WARPED_DIR}/anatQQ.${SUBJECT}.nii" \
@@ -110,7 +131,7 @@ afni_proc.py \
     -regress_censor_outliers 0.05 \
     -execute
 
-if [ "${KEEP_PB00_PB04:-0}" != "1" ] && [ -d "${SUBJECT}_preproc.results" ]; then
+if [[ "${KEEP_PB00_PB04:-0}" != "1" ]] && [[ -d "${SUBJECT}_preproc.results" ]]; then
     log_info "Removing intermediate pb00-pb04 and all_runs bricks to save storage space..."
     rm -f "${SUBJECT}_preproc.results"/pb00.* \
           "${SUBJECT}_preproc.results"/pb01.* \

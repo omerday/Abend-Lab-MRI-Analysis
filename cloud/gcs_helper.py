@@ -6,26 +6,74 @@ Supports both `gcloud storage` / `gsutil` CLI acceleration (parallel composite/s
 transfers) and the Python `google-cloud-storage` SDK as a fallback.
 """
 
+import fnmatch
 import glob
+import logging
 import os
+import re
 import shutil
 import subprocess
 import zipfile
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def is_gcs_uri(path: Optional[str]) -> bool:
-    """Return True if path is a Google Cloud Storage URI (gs://...)."""
+    """
+    Return True if path is a Google Cloud Storage URI starting with 'gs://'.
+
+    Parameters
+    ----------
+    path : Optional[str]
+        URI or path string to inspect.
+
+    Returns
+    -------
+    bool
+        True if path starts with 'gs://', False otherwise.
+    """
     return bool(path and str(path).strip().startswith("gs://"))
 
 
 def normalize_gcs_uri(uri: str) -> str:
-    """Strip trailing slashes from a GCS URI."""
-    return uri.strip().rstrip("/")
+    """
+    Strip leading/trailing whitespace and trailing slashes from a GCS URI or local path.
+    Preserves the 'gs://' scheme boundary for root URIs like 'gs://' or 'gs:///'.
+
+    Parameters
+    ----------
+    uri : str
+        URI or path string to normalize.
+
+    Returns
+    -------
+    str
+        Cleaned URI or path without trailing slashes.
+    """
+    stripped = str(uri).strip()
+    if stripped.startswith("gs://"):
+        body = stripped[len("gs://"):].rstrip("/")
+        return f"gs://{body}"
+    return stripped.rstrip("/")
 
 
 def join_uri(base: str, *parts: str) -> str:
-    """Join URI or filesystem path components cleanly."""
+    """
+    Join URI or filesystem path components cleanly without duplicate slashes.
+
+    Parameters
+    ----------
+    base : str
+        Base URI (e.g. 'gs://bucket') or local directory path.
+    *parts : str
+        Subdirectory, filename, or prefix components to append.
+
+    Returns
+    -------
+    str
+        Properly concatenated URI or filesystem path.
+    """
     if is_gcs_uri(base):
         cleaned = [normalize_gcs_uri(base)]
         for p in parts:
@@ -39,7 +87,14 @@ def join_uri(base: str, *parts: str) -> str:
 def get_cloud_task_shard() -> Tuple[Optional[int], Optional[int]]:
     """
     Detect if running inside a Google Cloud Batch or Cloud Run Job task array.
-    Returns (task_index, task_count) or (None, None) if running normally/locally.
+
+    Inspects BATCH_TASK_INDEX/BATCH_TASK_COUNT and
+    CLOUD_RUN_TASK_INDEX/CLOUD_RUN_TASK_COUNT environment variables.
+
+    Returns
+    -------
+    Tuple[Optional[int], Optional[int]]
+        (task_index, task_count) or (None, None) if running normally/locally.
     """
     idx_str = os.environ.get("BATCH_TASK_INDEX") or os.environ.get("CLOUD_RUN_TASK_INDEX")
     cnt_str = os.environ.get("BATCH_TASK_COUNT") or os.environ.get("CLOUD_RUN_TASK_COUNT")
@@ -51,10 +106,22 @@ def get_cloud_task_shard() -> Tuple[Optional[int], Optional[int]]:
     return None, None
 
 
-def shard_subjects_for_cloud_task(subjects: List[str], console=None) -> List[str]:
+def shard_subjects_for_cloud_task(subjects: List[str], console: Optional[Any] = None) -> List[str]:
     """
     If running in a multi-task Cloud Batch / Cloud Run Job (where task_count > 1),
     filter the subject list so each task processes its assigned slice `subjects[idx::total]`.
+
+    Parameters
+    ----------
+    subjects : List[str]
+        Full list of candidate subject IDs.
+    console : Optional[Any]
+        Optional Rich console or logger instance for diagnostic output.
+
+    Returns
+    -------
+    List[str]
+        Partitioned subject subset for the current task shard, or full list if single-task.
     """
     idx, total = get_cloud_task_shard()
     if idx is not None and total is not None and total > 1:
@@ -69,13 +136,29 @@ def shard_subjects_for_cloud_task(subjects: List[str], console=None) -> List[str
 
 
 def _has_gcloud_storage() -> bool:
-    """Return True if `gcloud` CLI is available on PATH."""
+    """Return True if `gcloud` CLI executable is available on PATH."""
     return shutil.which("gcloud") is not None
 
 
 def _parse_gcs_uri(gcs_uri: str) -> Tuple[str, str]:
-    """Split gs://bucket/prefix/object into (bucket_name, blob_prefix)."""
-    without_scheme = gcs_uri[len("gs://"):]
+    """
+    Split gs://bucket/prefix/object into (bucket_name, blob_prefix).
+
+    Parameters
+    ----------
+    gcs_uri : str
+        Google Cloud Storage URI to parse.
+
+    Returns
+    -------
+    Tuple[str, str]
+        (bucket_name, blob_prefix) without leading slash.
+    """
+    stripped = str(gcs_uri).strip()
+    if stripped.startswith("gs://"):
+        without_scheme = stripped[len("gs://"):]
+    else:
+        without_scheme = stripped.lstrip("/")
     parts = without_scheme.split("/", 1)
     bucket_name = parts[0]
     prefix = parts[1] if len(parts) > 1 else ""
@@ -83,7 +166,19 @@ def _parse_gcs_uri(gcs_uri: str) -> Tuple[str, str]:
 
 
 def gcs_path_exists(gcs_uri: str) -> bool:
-    """Check whether an object or prefix exists in GCS."""
+    """
+    Check whether an object or directory prefix exists in GCS.
+
+    Parameters
+    ----------
+    gcs_uri : str
+        Target GCS URI to check.
+
+    Returns
+    -------
+    bool
+        True if the object or at least one blob with the given prefix exists.
+    """
     gcs_uri = normalize_gcs_uri(gcs_uri)
     if _has_gcloud_storage():
         res = subprocess.run(
@@ -109,7 +204,21 @@ def gcs_path_exists(gcs_uri: str) -> bool:
 
 
 def gcs_download_file(gcs_uri: str, local_dest: str) -> bool:
-    """Download a single object from GCS to local_dest."""
+    """
+    Download a single object from GCS to local_dest.
+
+    Parameters
+    ----------
+    gcs_uri : str
+        Source GCS URI of the object.
+    local_dest : str
+        Local filesystem destination path.
+
+    Returns
+    -------
+    bool
+        True if download succeeded and local file exists, False otherwise.
+    """
     os.makedirs(os.path.dirname(os.path.abspath(local_dest)), exist_ok=True)
     if _has_gcloud_storage():
         res = subprocess.run(
@@ -132,12 +241,26 @@ def gcs_download_file(gcs_uri: str, local_dest: str) -> bool:
         blob.download_to_filename(local_dest)
         return os.path.exists(local_dest)
     except Exception as e:
-        print(f"Warning: GCS download failed for {gcs_uri}: {e}")
+        logger.warning("GCS download failed for %s: %s", gcs_uri, e)
         return False
 
 
 def gcs_upload_file(local_src: str, gcs_uri: str) -> bool:
-    """Upload a single local file to GCS."""
+    """
+    Upload a single local file to GCS.
+
+    Parameters
+    ----------
+    local_src : str
+        Local filesystem source path.
+    gcs_uri : str
+        Destination GCS URI.
+
+    Returns
+    -------
+    bool
+        True if upload succeeded, False otherwise.
+    """
     if not os.path.exists(local_src):
         return False
     if _has_gcloud_storage():
@@ -159,12 +282,28 @@ def gcs_upload_file(local_src: str, gcs_uri: str) -> bool:
         blob.upload_from_filename(local_src)
         return True
     except Exception as e:
-        print(f"Warning: GCS upload failed for {gcs_uri}: {e}")
+        logger.warning("GCS upload failed for %s: %s", gcs_uri, e)
         return False
 
 
 def gcs_sync_down(gcs_prefix: str, local_dir: str, exclude_regex: Optional[str] = None) -> bool:
-    """Recursively sync a GCS directory prefix down to a local directory."""
+    """
+    Recursively sync a GCS directory prefix down to a local directory.
+
+    Parameters
+    ----------
+    gcs_prefix : str
+        Source GCS prefix URI.
+    local_dir : str
+        Local destination directory path.
+    exclude_regex : Optional[str]
+        Optional regular expression for paths to exclude.
+
+    Returns
+    -------
+    bool
+        True if sync succeeded, False otherwise.
+    """
     gcs_prefix = normalize_gcs_uri(gcs_prefix)
     os.makedirs(local_dir, exist_ok=True)
 
@@ -179,16 +318,15 @@ def gcs_sync_down(gcs_prefix: str, local_dir: str, exclude_regex: Optional[str] 
 
     try:
         from google.cloud import storage
-        import re
         client = storage.Client()
         bucket_name, prefix = _parse_gcs_uri(gcs_prefix)
-        prefix_slash = prefix.rstrip("/") + "/"
+        prefix_slash = prefix.rstrip("/") + "/" if prefix else ""
         blobs = list(client.list_blobs(bucket_name, prefix=prefix_slash))
         if not blobs:
             return False
         pattern = re.compile(exclude_regex) if exclude_regex else None
         for blob in blobs:
-            rel_path = blob.name[len(prefix_slash):]
+            rel_path = blob.name[len(prefix_slash):] if prefix_slash else blob.name
             if not rel_path or rel_path.endswith("/"):
                 continue
             if pattern and pattern.search(rel_path):
@@ -198,12 +336,32 @@ def gcs_sync_down(gcs_prefix: str, local_dir: str, exclude_regex: Optional[str] 
             blob.download_to_filename(dest_path)
         return True
     except Exception as e:
-        print(f"Warning: GCS sync down failed for {gcs_prefix}: {e}")
+        logger.warning("GCS sync down failed for %s: %s", gcs_prefix, e)
         return False
 
 
 def gcs_sync_up(local_dir: str, gcs_prefix: str, exclude_regex: Optional[str] = None) -> bool:
-    """Recursively sync a local directory up to a GCS prefix."""
+    """
+    Recursively sync a local directory up to a GCS prefix.
+
+    Attempts high-speed CLI acceleration using `gcloud storage rsync -r`.
+    Falls back cleanly to the Python `google.cloud.storage` SDK with complete
+    exception handling.
+
+    Parameters
+    ----------
+    local_dir : str
+        Source local directory to sync from.
+    gcs_prefix : str
+        Target GCS URI prefix.
+    exclude_regex : Optional[str]
+        Optional regular expression for paths to exclude.
+
+    Returns
+    -------
+    bool
+        True if sync succeeded, False otherwise.
+    """
     if not os.path.exists(local_dir):
         return False
     gcs_prefix = normalize_gcs_uri(gcs_prefix)
@@ -217,27 +375,44 @@ def gcs_sync_up(local_dir: str, gcs_prefix: str, exclude_regex: Optional[str] = 
         if res.returncode == 0:
             return True
 
-    from google.cloud import storage
-    import re
-    client = storage.Client()
-    bucket_name, prefix = _parse_gcs_uri(gcs_prefix)
-    bucket = client.bucket(bucket_name)
-    prefix_slash = prefix.rstrip("/") + "/"
-    pattern = re.compile(exclude_regex) if exclude_regex else None
+    try:
+        from google.cloud import storage
+        client = storage.Client()
+        bucket_name, prefix = _parse_gcs_uri(gcs_prefix)
+        bucket = client.bucket(bucket_name)
+        prefix_slash = prefix.rstrip("/") + "/" if prefix else ""
+        pattern = re.compile(exclude_regex) if exclude_regex else None
 
-    for root, _, files in os.walk(local_dir):
-        for fname in files:
-            full_path = os.path.join(root, fname)
-            rel_path = os.path.relpath(full_path, local_dir).replace(os.sep, "/")
-            if pattern and pattern.search(rel_path):
-                continue
-            blob = bucket.blob(prefix_slash + rel_path)
-            blob.upload_from_filename(full_path)
-    return True
+        for root, _, files in os.walk(local_dir):
+            for fname in files:
+                full_path = os.path.join(root, fname)
+                rel_path = os.path.relpath(full_path, local_dir).replace(os.sep, "/")
+                if pattern and pattern.search(rel_path):
+                    continue
+                blob = bucket.blob(prefix_slash + rel_path)
+                blob.upload_from_filename(full_path)
+        return True
+    except Exception as e:
+        logger.warning("GCS sync up failed for %s: %s", gcs_prefix, e)
+        return False
 
 
 def gcs_download_wildcard(gcs_pattern: str, local_dir: str) -> bool:
-    """Download files matching a wildcard (e.g. gs://.../stats.sub-435+tlrc.*) to local_dir."""
+    """
+    Download files matching a wildcard pattern (e.g. gs://.../stats.sub-435+tlrc.*) to local_dir.
+
+    Parameters
+    ----------
+    gcs_pattern : str
+        GCS pattern with glob wildcards (*, ?).
+    local_dir : str
+        Target local directory.
+
+    Returns
+    -------
+    bool
+        True if at least one file was matched and downloaded, False otherwise.
+    """
     os.makedirs(local_dir, exist_ok=True)
     if _has_gcloud_storage():
         res = subprocess.run(
@@ -251,7 +426,6 @@ def gcs_download_wildcard(gcs_pattern: str, local_dir: str) -> bool:
 
     try:
         from google.cloud import storage
-        import fnmatch
         client = storage.Client()
         bucket_name, pattern_prefix = _parse_gcs_uri(gcs_pattern)
         base_prefix = pattern_prefix.split("*")[0].split("[")[0]
@@ -264,16 +438,35 @@ def gcs_download_wildcard(gcs_pattern: str, local_dir: str) -> bool:
                 matched = True
         return matched
     except Exception as e:
-        print(f"Warning: GCS wildcard download failed for {gcs_pattern}: {e}")
+        logger.warning("GCS wildcard download failed for %s: %s", gcs_pattern, e)
         return False
 
 
 def extract_subject_zip(zip_path: str, subject_id: str, dest_input_root: str) -> str:
     """
-    Extract a subject's input zip file into `dest_input_root` such that
+    Extract a subject's input zip file into `dest_input_root` ensuring
     `{dest_input_root}/{subject_id}/ses-X/...` is guaranteed to exist regardless
-    of whether the zip archive was created with `{subject_id}/` as the top-level
-    folder, `ses-X/` directly at the archive root, or `anat/`+`func/` at the root.
+    of archive layout:
+      1. Root folder is `{subject_id}/...`
+      2. Root folder is `ses-X/...`
+      3. BIDS modality folders (`anat/`, `func/`, `fmap/`, `dwi/`, `beh/`) at root
+      4. Arbitrary nested paths.
+
+    Strips `__MACOSX` metadata automatically.
+
+    Parameters
+    ----------
+    zip_path : str
+        Path to local .zip archive.
+    subject_id : str
+        Subject ID string (e.g. 'sub-435').
+    dest_input_root : str
+        Destination root folder for inputs.
+
+    Returns
+    -------
+    str
+        Path to active subject directory: `{dest_input_root}/{subject_id}`.
     """
     subject_target_dir = os.path.join(dest_input_root, subject_id)
     os.makedirs(dest_input_root, exist_ok=True)
@@ -318,7 +511,7 @@ def stage_in_subject_input(
     subject_id: str,
     configured_input_dir: str,
     scratch_root: str,
-    console=None,
+    console: Optional[Any] = None,
 ) -> str:
     """
     Ensure the raw BIDS input directory for `subject_id` is available locally.
@@ -330,6 +523,27 @@ def stage_in_subject_input(
       2. If `{configured_input_dir}/{subject_id}.zip` exists locally, extracts it into `{scratch_root}/input`.
 
     Returns the active local `input_dir` root path containing `{subject_id}/`.
+
+    Parameters
+    ----------
+    subject_id : str
+        Subject ID (e.g. 'sub-435').
+    configured_input_dir : str
+        Input directory path or GCS URI from main_config.toml.
+    scratch_root : str
+        Fast local scratch directory for staging and extraction.
+    console : Optional[Any]
+        Optional Rich console or logger.
+
+    Returns
+    -------
+    str
+        Local directory path containing `{subject_id}/`.
+
+    Raises
+    ------
+    FileNotFoundError
+        If neither zip nor uncompressed directory is found in GCS.
     """
     local_input_root = os.path.join(scratch_root, "input")
     local_subj_dir = os.path.join(local_input_root, subject_id)
@@ -376,12 +590,29 @@ def stage_in_subject_input(
     return configured_input_dir
 
 
-def cleanup_pb00_to_pb04(func_preproc_dir: str, subject_id: str, console=None) -> int:
+def cleanup_pb00_to_pb04(
+    func_preproc_dir: str,
+    subject_id: str,
+    console: Optional[Any] = None,
+) -> int:
     """
     Delete heavy intermediate AFNI preprocessing bricks (`pb00`..`pb04` and `all_runs`)
     from `{func_preproc_dir}/{subject_id}_preproc.results` while keeping `pb05.*.scale+tlrc`,
     motion/outlier `.1D` files, anatomical followers, masks, and `QC_*` reports.
-    Returns number of files removed.
+
+    Parameters
+    ----------
+    func_preproc_dir : str
+        Parent preprocessing output directory.
+    subject_id : str
+        Subject ID string.
+    console : Optional[Any]
+        Optional Rich console or logger.
+
+    Returns
+    -------
+    int
+        Number of intermediate brick files removed.
     """
     results_dir = os.path.join(func_preproc_dir, f"{subject_id}_preproc.results")
     if not os.path.isdir(results_dir):

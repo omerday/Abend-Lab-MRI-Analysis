@@ -20,19 +20,20 @@
 #   OMP_NUM_THREADS   : Number of OpenMP threads for AFNI (sswarper2, 3dQwarp, 3dREMLfit, etc.)
 # ==============================================================================
 
-set -e
+set -euo pipefail
 
+# Environment & Dependencies
 export PYTHONPATH="/opt/pydeps:/opt/user_pip_packages/lib/python3.6/site-packages:/app:${PYTHONPATH:-}"
 export CLOUDSDK_CONFIG="${CLOUDSDK_CONFIG:-/tmp/gcloud_config}"
 mkdir -p "$CLOUDSDK_CONFIG"
 
 PIPELINE="${PIPELINE:-tim}"
-PIPELINE=$(echo "$PIPELINE" | tr '[:upper:]' '[:lower:]')
+PIPELINE="$(echo "$PIPELINE" | tr '[:upper:]' '[:lower:]')"
 
-if [ "$PIPELINE" == "war" ] || [ "$PIPELINE" == "war_analysis" ]; then
+if [ "$PIPELINE" = "war" ] || [ "$PIPELINE" = "war_analysis" ]; then
     PIPELINE="war"
     PIPELINE_DIR="/app/war_analysis"
-elif [ "$PIPELINE" == "tim" ] || [ "$PIPELINE" == "tim_analysis" ]; then
+elif [ "$PIPELINE" = "tim" ] || [ "$PIPELINE" = "tim_analysis" ]; then
     PIPELINE="tim"
     PIPELINE_DIR="/app/tim_analysis"
 else
@@ -63,8 +64,16 @@ mkdir -p "$SCRATCH_DIR"
 
 # Default OpenMP threads to available vCPUs
 if [ -z "${OMP_NUM_THREADS:-}" ]; then
-    export OMP_NUM_THREADS=$(nproc 2>/dev/null || echo 8)
+    export OMP_NUM_THREADS="$(nproc 2>/dev/null || echo 8)"
 fi
+
+# Determine Task Index and Count for logging
+TASK_INDEX="${BATCH_TASK_INDEX:-${CLOUD_RUN_TASK_INDEX:-local}}"
+TASK_COUNT="${BATCH_TASK_COUNT:-${CLOUD_RUN_TASK_COUNT:-1}}"
+
+# Normalize EXPORT_QC_PDFS (defaults to true as documented)
+EXPORT_QC_PDFS="${EXPORT_QC_PDFS:-true}"
+EXPORT_QC_PDFS="$(echo "$EXPORT_QC_PDFS" | tr '[:upper:]' '[:lower:]')"
 
 echo "============================================================"
 echo "  Abend Lab fMRI Cloud Runner"
@@ -74,11 +83,23 @@ echo "  Output Dir      : ${MRI_OUTPUT_DIR:-(from main_config.toml)}"
 echo "  Reports Dir     : ${MRI_REPORTS_DIR:-(from main_config.toml)}"
 echo "  Scratch Dir     : ${SCRATCH_DIR}"
 echo "  OMP_NUM_THREADS : ${OMP_NUM_THREADS}"
-echo "  Task Shard      : Index=${BATCH_TASK_INDEX:-${CLOUD_RUN_TASK_INDEX:-local}} / Count=${BATCH_TASK_COUNT:-${CLOUD_RUN_TASK_COUNT:-1}}"
+echo "  Task Shard      : Index=${TASK_INDEX} / Count=${TASK_COUNT}"
+echo "  Export QC PDFs  : ${EXPORT_QC_PDFS}"
 echo "  Arguments       : $*"
 echo "============================================================"
 
 cd "$PIPELINE_DIR"
+
+# Track Xvfb process PID for clean lifecycle management
+XVFB_PID=""
+cleanup() {
+    local exit_code=$?
+    if [ -n "$XVFB_PID" ] && kill -0 "$XVFB_PID" >/dev/null 2>&1; then
+        kill "$XVFB_PID" >/dev/null 2>&1 || true
+    fi
+    exit "$exit_code"
+}
+trap cleanup EXIT INT TERM
 
 # Start Xvfb in the background if not already running (needed by @chauffeur_afni and wkhtmltopdf)
 if command -v Xvfb >/dev/null 2>&1 && [ -z "${DISPLAY:-}" ]; then
@@ -86,7 +107,6 @@ if command -v Xvfb >/dev/null 2>&1 && [ -z "${DISPLAY:-}" ]; then
     Xvfb "$XVFB_DISPLAY" -screen 0 1600x1200x24 -nolisten tcp >/dev/null 2>&1 &
     XVFB_PID=$!
     export DISPLAY="$XVFB_DISPLAY"
-    trap "kill $XVFB_PID >/dev/null 2>&1 || true" EXIT
 fi
 
 # If first arg is a custom command (e.g. "export_results.py" or "concatenate_reports.py" or "bash"), run it directly
@@ -95,9 +115,15 @@ if [ "$#" -gt 0 ]; then
         export_results.py|concatenate_reports.py)
             SCRIPT="$1"
             shift
-            exec python3 "$SCRIPT" "$@"
+            python3 "$SCRIPT" "$@"
+            exit 0
             ;;
         bash|sh|python|python3)
+            # For interactive/subshell, stop Xvfb before exec if we spawned it
+            if [ -n "$XVFB_PID" ] && kill -0 "$XVFB_PID" >/dev/null 2>&1; then
+                kill "$XVFB_PID" >/dev/null 2>&1 || true
+                XVFB_PID=""
+            fi
             exec "$@"
             ;;
     esac
@@ -106,8 +132,8 @@ fi
 # Otherwise, pass all arguments to run_analysis.py
 python3 run_analysis.py --scratch_dir "$SCRATCH_DIR" "$@"
 
-# Optionally run export_results.py if EXPORT_QC_PDFS=true and MRI_REPORTS_DIR is set
-if [ "${EXPORT_QC_PDFS:-false}" == "true" ] && [ -n "${MRI_REPORTS_DIR:-}" ]; then
+# Run export_results.py if EXPORT_QC_PDFS is true and MRI_REPORTS_DIR is set
+if [ "$EXPORT_QC_PDFS" = "true" ] && [ -n "${MRI_REPORTS_DIR:-}" ]; then
     echo "--- Exporting QC PDFs to ${MRI_REPORTS_DIR} ---"
-    python3 export_results.py --output_dir "$MRI_OUTPUT_DIR" --dropbox_dir "$MRI_REPORTS_DIR" || true
+    python3 export_results.py --output_dir "${MRI_OUTPUT_DIR:-}" --dropbox_dir "$MRI_REPORTS_DIR" || true
 fi

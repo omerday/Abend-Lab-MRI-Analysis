@@ -1,13 +1,16 @@
-
 #!/bin/bash
 
 # --- Script: 00_create_timings.sh ---
-# Description: Converts event .tsv files into AFNI-compatible .1D timing files.
-# Date: 2025-09-16
+# Description: Converts event .tsv files into AFNI-compatible .1D timing files for TIM paradigm.
 
-set -e # Exit immediately if a command exits with a non-zero status.
+set -euo pipefail
 
-# Default values
+# Get script directory and source unified logging helpers
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+# shellcheck source=./utils_colors.sh
+source "${SCRIPT_DIR}/utils_colors.sh"
+
+# Default configuration values
 SUBJECT=""
 SESSION="1"
 INPUT_DIR=""
@@ -38,124 +41,124 @@ while [[ "$#" -gt 0 ]]; do
             shift 2
             ;;
         *)
-            echo "Unknown option: $1" >&2
+            log_error "Unknown option: $1"
             exit 1
             ;;
     esac
 done
 
 # Validate required arguments
-if [ -z "$SUBJECT" ] || [ -z "$SESSION" ] || [ -z "$INPUT_DIR" ]; then
-    echo "Usage: $0 --subject <ID> --session <N> --input <dir> [--runs <N>] [--lag <N>]" >&2
+if [[ -z "${SUBJECT}" ]] || [[ -z "${SESSION}" ]] || [[ -z "${INPUT_DIR}" ]]; then
+    log_error "Usage: $0 --subject <ID> --session <N> --input <dir> [--runs <N>] [--lag <N>]"
     exit 1
 fi
 
 SESSION_PREFIX="ses-${SESSION}"
 FUNC_DIR="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func"
 
-echo "--- Starting Onset Conversion for ${SUBJECT}, ${SESSION_PREFIX} ---"
+print_header "Starting Onset Conversion for ${SUBJECT}, ${SESSION_PREFIX}"
+log_info "Runs: ${RUNS}"
+log_info "Lag: ${LAG} seconds"
 
-if [ ! -d "$FUNC_DIR" ]; then
-    echo "Error: Func directory not found at ${FUNC_DIR}" >&2
+if [[ ! -d "${FUNC_DIR}" ]]; then
+    log_error "Func directory not found at ${FUNC_DIR}"
     exit 1
 fi
 
-cd "$FUNC_DIR"
-if [ -d "./timings" ]; then
-    echo "Removing existing timings directory."
-    rm -r ./timings
+cd "${FUNC_DIR}"
+if [[ -d "./timings" ]]; then
+    log_warn "Removing existing timings directory."
+    rm -rf ./timings
 fi
-mkdir timings
+mkdir -p timings
 
-for i in $(seq 1 $RUNS); do
+for i in $(seq 1 "${RUNS}"); do
     TSV_FILE="${SUBJECT}_${SESSION_PREFIX}_task-tim_run-${i}_events.tsv"
-    if [ ! -f "$TSV_FILE" ]; then
-        echo "Warning: Event file not found, skipping: ${TSV_FILE}"
+    if [[ ! -f "${TSV_FILE}" ]]; then
+        log_warn "Event file not found, skipping: ${TSV_FILE}"
         continue
     fi
 
     # Timed events - square onset
-    awk -v lag_val="$LAG" '{if ($3=="21") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/green_square_onset_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="41") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/yellow_square_onset_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="81") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/red_square_onset_run${i}.txt
+    awk -v lag_val="${LAG}" '{if ($3=="21") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/green_square_onset_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="41") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/yellow_square_onset_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="81") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/red_square_onset_run${i}.txt"
 
     # Amplitude events - square onset
-    awk -v lag_val="$LAG" '{if ($3=="21") {printf $1 - lag_val"*2 "}}' "$TSV_FILE" >> timings/amp_square_onset_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="41") {printf $1 - lag_val"*6 "}}' "$TSV_FILE" >> timings/amp_square_onset_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="81") {printf $1 - lag_val"*8 "}}' "$TSV_FILE" >> timings/amp_square_onset_run${i}.txt
-    echo `cat timings/amp_square_onset_run${i}.txt` >> timings/amp_square_onset.1D
+    awk -v lag_val="${LAG}" '{if ($3=="21") {printf $1 - lag_val"*2 "}}' "${TSV_FILE}" >> "timings/amp_square_onset_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="41") {printf $1 - lag_val"*6 "}}' "${TSV_FILE}" >> "timings/amp_square_onset_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="81") {printf $1 - lag_val"*8 "}}' "${TSV_FILE}" >> "timings/amp_square_onset_run${i}.txt"
+    if [[ -f "timings/amp_square_onset_run${i}.txt" ]]; then
+        echo $(cat "timings/amp_square_onset_run${i}.txt") >> timings/amp_square_onset.1D
+    fi
 
     # Timed events - pre heat
-    awk -v lag_val="$LAG" '{if ($3=="25") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/low_temp_pre_pain_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="45") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/med_temp_pre_pain_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="85") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/high_temp_pre_pain_run${i}.txt
+    awk -v lag_val="${LAG}" '{if ($3=="25") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/low_temp_pre_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="45") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/med_temp_pre_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="85") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/high_temp_pre_pain_run${i}.txt"
 
     # Amplitude events - pre heat
-    awk -v lag_val="$LAG" '{if ($3=="25") {printf $1 - lag_val"*2 "}}' "$TSV_FILE" >> timings/amp_pre_pain_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="45") {printf $1 - lag_val"*6 "}}' "$TSV_FILE" >> timings/amp_pre_pain_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="85") {printf $1 - lag_val"*8 "}}' "$TSV_FILE" >> timings/amp_pre_pain_run${i}.txt
-    echo `cat timings/amp_pre_pain_run${i}.txt` >> timings/amp_pre_pain.1D
+    awk -v lag_val="${LAG}" '{if ($3=="25") {printf $1 - lag_val"*2 "}}' "${TSV_FILE}" >> "timings/amp_pre_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="45") {printf $1 - lag_val"*6 "}}' "${TSV_FILE}" >> "timings/amp_pre_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="85") {printf $1 - lag_val"*8 "}}' "${TSV_FILE}" >> "timings/amp_pre_pain_run${i}.txt"
+    if [[ -f "timings/amp_pre_pain_run${i}.txt" ]]; then
+        echo $(cat "timings/amp_pre_pain_run${i}.txt") >> timings/amp_pre_pain.1D
+    fi
 
     # Timed events - heat
-    awk -v lag_val="$LAG" '{if ($3=="26") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/low_temp_pain_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="46") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/med_temp_pain_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="86") {print $1 - lag_val, $2, 1}}' "$TSV_FILE" > timings/high_temp_pain_run${i}.txt
+    awk -v lag_val="${LAG}" '{if ($3=="26") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/low_temp_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="46") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/med_temp_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="86") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/high_temp_pain_run${i}.txt"
 
     # Amplitude events - heat
-    awk -v lag_val="$LAG" '{if ($3=="26") {printf $1 - lag_val"*2 "}}' "$TSV_FILE" >> timings/amp_pain_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="46") {printf $1 - lag_val"*6 "}}' "$TSV_FILE" >> timings/amp_pain_run${i}.txt
-    awk -v lag_val="$LAG" '{if ($3=="86") {printf $1 - lag_val"*8 "}}' "$TSV_FILE" >> timings/amp_pain_run${i}.txt
-    echo `cat timings/amp_pain_run${i}.txt` >> timings/amp_pain.1D
+    awk -v lag_val="${LAG}" '{if ($3=="26") {printf $1 - lag_val"*2 "}}' "${TSV_FILE}" >> "timings/amp_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="46") {printf $1 - lag_val"*6 "}}' "${TSV_FILE}" >> "timings/amp_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="86") {printf $1 - lag_val"*8 "}}' "${TSV_FILE}" >> "timings/amp_pain_run${i}.txt"
+    if [[ -f "timings/amp_pain_run${i}.txt" ]]; then
+        echo $(cat "timings/amp_pain_run${i}.txt") >> timings/amp_pain.1D
+    fi
 
     # SCR and Rating amplitude files
-    # These source files (e.g., anticipation_scr_amplitude_run-i.txt) are optional per subject/run.
-    if [ -f "anticipation_scr_amplitude_run-${i}.txt" ]; then
-        awk -v lag_val="$LAG" '{print $2 - lag_val"*"$3}' "anticipation_scr_amplitude_run-${i}.txt" > "timings/anticipation_scr_amp_run-${i}.txt"
-        echo `cat timings/anticipation_scr_amp_run-${i}.txt` >> timings/anticipation_scr_amp.1D
+    if [[ -f "anticipation_scr_amplitude_run-${i}.txt" ]]; then
+        awk -v lag_val="${LAG}" '{print $2 - lag_val"*"$3}' "anticipation_scr_amplitude_run-${i}.txt" > "timings/anticipation_scr_amp_run-${i}.txt"
+        echo $(cat "timings/anticipation_scr_amp_run-${i}.txt") >> timings/anticipation_scr_amp.1D
         rm -f timings/anticipation_scr_amp_run-*.txt
 
-        awk -v lag_val="$LAG" '{print ($2 - lag_val) "*" ($1 % 10)}' "anticipation_scr_amplitude_run-${i}.txt" > "timings/anticipation_1234_amp_run-${i}.txt"
-        echo `cat timings/anticipation_1234_amp_run-${i}.txt` >> timings/anticipation_1234_amp.1D
+        awk -v lag_val="${LAG}" '{print ($2 - lag_val) "*" ($1 % 10)}' "anticipation_scr_amplitude_run-${i}.txt" > "timings/anticipation_1234_amp_run-${i}.txt"
+        echo $(cat "timings/anticipation_1234_amp_run-${i}.txt") >> timings/anticipation_1234_amp.1D
         rm -f timings/anticipation_1234*.txt
     fi
 
-    if [ -f "pain_scr_amplitude_run-${i}.txt" ]; then
-        awk -v lag_val="$LAG" '{print $2 - lag_val"*"$3}' "pain_scr_amplitude_run-${i}.txt" > "timings/pain_scr_amp_run-${i}.txt"
-        echo `cat timings/pain_scr_amp_run-${i}.txt` >> timings/pain_scr_amp.1D
+    if [[ -f "pain_scr_amplitude_run-${i}.txt" ]]; then
+        awk -v lag_val="${LAG}" '{print $2 - lag_val"*"$3}' "pain_scr_amplitude_run-${i}.txt" > "timings/pain_scr_amp_run-${i}.txt"
+        echo $(cat "timings/pain_scr_amp_run-${i}.txt") >> timings/pain_scr_amp.1D
         rm -f timings/pain_scr_amp_run-*.txt
 
-        awk -v lag_val="$LAG" '{print $2 - lag_val"*"$4}' "pain_scr_amplitude_run-${i}.txt" > "timings/pain_rating_amp_run-${i}.txt"
-        echo `cat timings/pain_rating_amp_run-${i}.txt` >> timings/pain_rating_amp.1D
+        awk -v lag_val="${LAG}" '{print $2 - lag_val"*"$4}' "pain_scr_amplitude_run-${i}.txt" > "timings/pain_rating_amp_run-${i}.txt"
+        echo $(cat "timings/pain_rating_amp_run-${i}.txt") >> timings/pain_rating_amp.1D
         rm -f timings/pain_rating_amp_run-*.txt
     fi
 
-    if [ -f "post_pain_scr_amplitude_run-${i}.txt" ]; then
-        awk -v lag_val="$LAG" '{print $2 - lag_val"*"$3}' "post_pain_scr_amplitude_run-${i}.txt" > "timings/post_pain_scr_amp_run-${i}.txt"
-        echo `cat timings/post_pain_scr_amp_run-${i}.txt` >> timings/post_pain_scr_amp.1D
+    if [[ -f "post_pain_scr_amplitude_run-${i}.txt" ]]; then
+        awk -v lag_val="${LAG}" '{print $2 - lag_val"*"$3}' "post_pain_scr_amplitude_run-${i}.txt" > "timings/post_pain_scr_amp_run-${i}.txt"
+        echo $(cat "timings/post_pain_scr_amp_run-${i}.txt") >> timings/post_pain_scr_amp.1D
         rm -f timings/post_pain_scr_amp_run-*.txt
     fi
 
-    if [ -f "pain_scr_amplitude_run-${i}.txt" ] && [ -f "post_pain_scr_amplitude_run-${i}.txt" ]; then
-        paste "pain_scr_amplitude_run-${i}.txt" "post_pain_scr_amplitude_run-${i}.txt" | awk -v lag_val="$LAG" '{print $2 - lag_val"*"$7}' > "timings/pain_post_pain_scr_amp_run-${i}.txt"
-        echo `cat timings/pain_post_pain_scr_amp_run-${i}.txt` >> timings/pain_post_pain_scr_amp.1D
+    if [[ -f "pain_scr_amplitude_run-${i}.txt" ]] && [[ -f "post_pain_scr_amplitude_run-${i}.txt" ]]; then
+        paste "pain_scr_amplitude_run-${i}.txt" "post_pain_scr_amplitude_run-${i}.txt" | awk -v lag_val="${LAG}" '{print $2 - lag_val"*"$7}' > "timings/pain_post_pain_scr_amp_run-${i}.txt"
+        echo $(cat "timings/pain_post_pain_scr_amp_run-${i}.txt") >> timings/pain_post_pain_scr_amp.1D
         rm -f timings/pain_post_pain_scr_amp_run-*.txt
     fi
 done
 
-# Now convert to AFNI format using timing_tool.py
+# Convert to AFNI format using timing_tool.py
 cd timings
-timing_tool.py -fsl_timing_files low_temp_pre_pain*.txt -write_timing low_temp_pre_pain.1D
-rm -f low_temp_pre_pain*.txt
-timing_tool.py -fsl_timing_files med_temp_pre_pain*.txt -write_timing med_temp_pre_pain.1D
-rm -f med_temp_pre_pain*.txt
-timing_tool.py -fsl_timing_files high_temp_pre_pain*.txt -write_timing high_temp_pre_pain.1D
-rm -f high_temp_pre_pain*.txt
+for prefix in low_temp_pre_pain med_temp_pre_pain high_temp_pre_pain green_square_onset yellow_square_onset red_square_onset; do
+    if compgen -G "${prefix}*.txt" > /dev/null; then
+        timing_tool.py -fsl_timing_files ${prefix}*.txt -write_timing "${prefix}.1D"
+        rm -f ${prefix}*.txt
+    fi
+done
 
-timing_tool.py -fsl_timing_files green_square_onset*.txt -write_timing green_square_onset.1D
-rm -f green_square_onset*.txt
-timing_tool.py -fsl_timing_files yellow_square_onset*.txt -write_timing yellow_square_onset.1D
-rm -f yellow_square_onset*.txt
-timing_tool.py -fsl_timing_files red_square_onset*.txt -write_timing red_square_onset.1D
-rm -f red_square_onset*.txt
-
-echo "--- Onset Conversion for ${SUBJECT} Complete ---"
+log_success "Onset Conversion for ${SUBJECT} Complete"

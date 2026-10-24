@@ -1,62 +1,120 @@
-"""
-The script goes over the given subject ID, and changing the folders and file names from sub-xx to sub-1xx
+"""Subject ID prefixing utility for WAR MRI dataset renumbering.
+
+Renames subject folders and internal filenames from sub-xx to sub-<prefix>xx
+(e.g., sub-18 to sub-118 with prefix '1'), updating session subdirectories
+(anat, func, fmap, dwi) and purging obsolete anat_warped trees.
 """
 
-import os
 import argparse
+import os
 import shutil
+import sys
+from typing import List, Optional
+
+VALID_SUBDIRS: List[str] = ["anat", "func", "fmap", "dwi", "anat_warped"]
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("subject", help="Subject ID, in the format of sub-xx")
-parser.add_argument("--prefix", help="Prefix to add before ID, eg. sub-<pref>xx")
-args = parser.parse_args()
+def rename_subject_directory(
+    subject: str,
+    prefix: str,
+    base_dir: str = ".",
+) -> str:
+    """Rename subject directory and all matching files within its sessions.
 
-subject = args.subject
-prefix = args.prefix
+    Args:
+        subject: Original subject ID (e.g. 'sub-18').
+        prefix: Prefix to prepend before the numerical ID (e.g. '1' -> 'sub-118').
+        base_dir: Base directory containing subject folders.
 
-if not subject:
-    print("No subject provided. Quitting.")
-    quit()
+    Returns:
+        The new subject ID string.
 
-if not subject.startswith("sub-"):
-    print("Wrong subject format. Should be sub-xx. Quitting.")
-    quit()
+    Raises:
+        ValueError: If subject or prefix are invalid or not starting with 'sub-'.
+        FileNotFoundError: If the subject directory does not exist in base_dir.
+    """
+    if not subject:
+        raise ValueError("Subject identifier cannot be empty.")
+    if not subject.startswith("sub-"):
+        raise ValueError(f"Invalid subject format: {subject}. Expected prefix 'sub-'.")
+    if not prefix:
+        raise ValueError("Prefix cannot be empty.")
 
-if not prefix:
-    print("No prefix provided. Quitting.")
-    quit()
+    old_subject_path = os.path.join(base_dir, subject)
+    if not os.path.isdir(old_subject_path):
+        raise FileNotFoundError(f"Subject folder not found: {old_subject_path}")
 
-if subject not in os.listdir():
-    print(f"folder {subject} not found.")
+    old_id = subject.split("-")[-1]
+    new_subject = f"sub-{prefix}{old_id}"
+    new_subject_path = os.path.join(base_dir, new_subject)
 
-old_id = subject.split('-')[-1]
-new_subject = "".join(["sub-", prefix, old_id])
+    print(f"Renaming directory: {old_subject_path} -> {new_subject_path}")
+    os.rename(old_subject_path, new_subject_path)
 
-try:
-    os.rename(subject, new_subject)
-except Exception as e:
-    print(f"Failed to rename folder {subject} to {new_subject}. Error: {e}")
-    
-sessions = [ses for ses in os.listdir(new_subject) if "ses-" in ses]
-folders = ['anat', 'func', 'fmap', 'dwi', 'anat_warped']
+    sessions = [
+        item for item in os.listdir(new_subject_path)
+        if "ses-" in item and os.path.isdir(os.path.join(new_subject_path, item))
+    ]
 
-for session in sessions:
-    print(f"Going over session {session}")
-    for folder in folders:
-        if folder in os.listdir(f"{new_subject}/{session}"):
-            print(f"Going over folder {folder}")
-            if folder == 'anat_warped':
+    for session in sessions:
+        session_path = os.path.join(new_subject_path, session)
+        print(f"Processing session {session} in {session_path}")
+
+        for folder in VALID_SUBDIRS:
+            folder_path = os.path.join(session_path, folder)
+            if not os.path.isdir(folder_path):
+                continue
+
+            if folder == "anat_warped":
                 try:
-                    shutil.rmtree(f"{new_subject}/{session}/{folder}")
-                    print("File tree removed successfully")
+                    shutil.rmtree(folder_path)
+                    print(f"Purged obsolete warped directory: {folder_path}")
                     continue
-                except Exception as e:
-                    print(f"Couldn't remove folder with error: {e}")
-            path = "".join([new_subject, '/', session, '/', folder])
-            for file in os.listdir(path):
+                except OSError as exc:
+                    print(f"Could not remove {folder_path}: {exc}", file=sys.stderr)
+                    continue
+
+            for file in os.listdir(folder_path):
                 if subject in file:
                     new_file_name = file.replace(subject, new_subject)
-                    print(f'Found file {file}. Renaming to {new_file_name}.')
-                    os.rename(path + '/' + file, path + '/' + new_file_name)
+                    src = os.path.join(folder_path, file)
+                    dst = os.path.join(folder_path, new_file_name)
+                    print(f"Renaming {file} -> {new_file_name}")
+                    os.rename(src, dst)
 
+    return new_subject
+
+
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """Parse CLI arguments for rename_subjects."""
+    parser = argparse.ArgumentParser(
+        description="Rename subject directory and files with an ID prefix (e.g. sub-18 -> sub-118)."
+    )
+    parser.add_argument("subject", help="Subject ID, in the format of sub-xx")
+    parser.add_argument("--prefix", required=True, help="Prefix to add before ID (e.g. '1' for sub-1xx)")
+    parser.add_argument(
+        "--base_dir",
+        default=".",
+        help="Base directory containing subject folders (default: current directory).",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """CLI entry point for rename_subjects."""
+    args = parse_args(argv)
+    try:
+        new_name = rename_subject_directory(
+            subject=args.subject,
+            prefix=args.prefix,
+            base_dir=args.base_dir,
+        )
+        print(f"Successfully renamed {args.subject} to {new_name}.")
+        return 0
+    except Exception as exc:
+        print(f"Error renaming subject: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

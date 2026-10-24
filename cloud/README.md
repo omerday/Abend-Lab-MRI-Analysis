@@ -1,63 +1,173 @@
 # Google Cloud Platform (GCP) Execution Guide for TIM & WAR fMRI Pipelines
 
-This directory contains everything needed to deploy and run the Abend Lab's `tim_analysis` and `war_analysis` fMRI pipelines on **Google Cloud Platform (GCP)** using **Google Cloud Storage (GCS)**, **Google Cloud Batch** (or **Cloud Run Jobs**), and **Google Cloud Workflows** (so jobs can be triggered directly from the GCP Console browser UI without any local CLI).
+This directory contains the containerization, orchestration, and storage infrastructure for deploying and executing the Abend Lab's `tim_analysis` and `war_analysis` fMRI pipelines on **Google Cloud Platform (GCP)**. It leverages **Google Cloud Storage (GCS)**, **Google Cloud Batch** (or **Cloud Run Jobs**), and **Google Cloud Workflows** to enable fully automated, highly parallel, serverless batch processing directly from the GCP Console browser interface without requiring local hardware.
 
 ---
 
-## 1. GCS Bucket Layout
+## ⚠️ Operational Safety & Compliance Notice
 
-Create a single GCS bucket (e.g., `gs://abend-lab-mri-analysis`) organized as follows:
+> **MANDATORY POLICY**:
+> Under NO circumstances should automated scripts or agents submit jobs, trigger builds, or execute deployment commands (`gcloud builds submit`, `gcloud batch jobs submit`, `gcloud workflows execute`) directly against Google Cloud Platform.
+> All builds and cloud job submissions must be reviewed and executed manually by the designated human project administrator.
+
+---
+
+## Table of Contents
+- [Architecture & Processing Flow](#architecture--processing-flow)
+- [GCS Bucket Organization](#gcs-bucket-organization)
+- [Environment Variables & Configuration](#environment-variables--configuration)
+- [Concurrency Architecture & Worker Sharding](#concurrency-architecture--worker-sharding)
+- [Container Infrastructure (`Dockerfile` & `cloud/entrypoint.sh`)](#container-infrastructure-dockerfile--cloudentrypointsh)
+- [One-Time GCP Setup Guide](#one-time-gcp-setup-guide)
+- [Executing Workflows via GCP Console](#executing-workflows-via-gcp-console)
+  - [Workflow Parameter Reference](#workflow-parameter-reference)
+  - [Execution Payloads](#execution-payloads)
+- [Alternative: Running via Cloud Run Jobs](#alternative-running-via-cloud-run-jobs)
+- [Live Log Inspection & Monitoring](#live-log-inspection--monitoring)
+- [Storage Optimization & Cost Containment](#storage-optimization--cost-containment)
+
+---
+
+## Architecture & Processing Flow
+
+The cloud subsystem isolates every subject onto an ephemeral compute instance, ensuring zero memory/CPU contention, predictable execution times, and automatic cost scaling.
+
+```text
+       ┌────────────────────────────────────────────────────────┐
+       │              Google Cloud Console (UI)                 │
+       │       Trigger: Cloud Workflow "run-mri-pipeline"       │
+       └───────────────────────────┬────────────────────────────┘
+                                   │
+                                   ▼
+       ┌────────────────────────────────────────────────────────┐
+       │               Google Cloud Batch Engine                │
+       │     Job: mri-<pipeline>-<job_name>-<timestamp>         │
+       │         parallelism = 10, taskCount = N                │
+       └──────┬────────────────────┬────────────────────┬───────┘
+              │                    │                    │
+              ▼                    ▼                    ▼
+     ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+     │ Task 0 (VM 1)   │  │ Task 1 (VM 2)   │  │ Task K (VM K)   │
+     │ e2-custom-8-16G │  │ e2-custom-8-16G │  │ e2-custom-8-16G │
+     │ 40 GB NVMe Disk │  │ 40 GB NVMe Disk │  │ 40 GB NVMe Disk │
+     └────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+              │                    │                    │
+              ▼                    ▼                    ▼
+     ┌──────────────────────────────────────────────────────────┐
+     │              Google Cloud Storage (GCS)                  │
+     │  - Download:  gs://<bucket>/inputs/<pipeline>/<subid>.zip│
+     │  - Execute:   AFNI (create_timings -> preproc -> glm)    │
+     │  - Upload:    gs://<bucket>/outputs/<pipeline>/<subid>/  │
+     │  - Reports:   gs://<bucket>/reports/<pipeline>/          │
+     └──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## GCS Bucket Organization
+
+A single centralized GCS bucket (e.g., `gs://abend-lab-mri-analysis`) stores raw input archives, preprocessed derivatives, GLM models, and generated QC PDFs:
 
 ```text
 gs://abend-lab-mri-analysis/
 ├── inputs/
 │   ├── tim/
-│   │   ├── sub-435.zip          # ~1 GB zip of sub-435/ses-1/{anat,func,fmap,...}
+│   │   ├── sub-435.zip              # Raw BIDS archive (~1 GB) containing ses-1/{anat,func}
 │   │   ├── sub-473.zip
 │   │   └── ...
 │   └── war/
-│       ├── sub-MD18.zip
+│       ├── sub-AL01.zip
 │       └── ...
 ├── outputs/
 │   ├── tim/
 │   │   ├── sub-435/
 │   │   │   └── ses-1/
-│   │   │       ├── timings/                 # Synced from 00_create_timings.sh
-│   │   │       ├── anat_warped/             # Synced from 01_preprocess_anat.sh
-│   │   │       ├── func_preproc/            # Synced from 02_preprocess_func.sh (pb00-pb04 auto-cleaned)
+│   │   │       ├── timings/         # Synced from 00_create_timings.sh
+│   │   │       ├── anat_warped/     # Synced from 01_preprocess_anat.sh (SSWarper)
+│   │   │       ├── func_preproc/    # Synced from 02_preprocess_func.sh (pb00-pb04 purged)
 │   │   │       └── glm/
-│   │   │           ├── sanity_check/        # Synced from 03_run_glm.sh (includes stats, fitts, errts, QC)
-│   │   │           ├── pain_by_rating/
+│   │   │           ├── pain_by_rating/ # Stats, fitts, errts, and Chauffeur QC images
 │   │   │           └── ...
-│   │   ├── group_analysis/
-│   │   │   └── <analysis>/<group_model>/    # Synced from 04_run_group_analysis.sh
-│   │   └── logs/                            # Per-subject step execution logs
+│   │   ├── group_analysis/          # Group models synced from 04_run_group_analysis.sh
+│   │   └── logs/                    # Step execution logs (<subject>_<step>.log)
 │   └── war/
+│       └── ...
 └── reports/
     ├── tim/
-    │   ├── sub-435/ses-1/*.pdf              # Exported QC & GLM PDFs
-    │   └── consolidated_report.pdf
+    │   ├── sub-435/ses-1/*.pdf      # Consolidated APQC and GLM montage PDFs
+    │   └── tim_consolidated_qc.pdf
     └── war/
 ```
 
-> **Note on Input Zip Structure**:
-> `cloud/gcs_helper.py` automatically handles both zip layouts:
-> 1. Top-level subject folder: `sub-435/ses-1/anat/...` and `sub-435/ses-1/func/...`
-> 2. Top-level session folder: `ses-1/anat/...` and `ses-1/func/...` (when the zip itself is named `sub-435.zip`).
+> **Zip Layout Compatibility**:
+> `cloud/gcs_helper.py` (`stage_in_subject_input`) automatically detects and unzips both common BIDS archive structures:
+> 1. Top-level subject directory: `sub-435/ses-1/anat/...`
+> 2. Top-level session directory: `ses-1/anat/...` (when the zip archive itself is named `sub-435.zip`).
 
 ---
 
-## 2. One-Time GCP Project Setup (Run in Google Cloud Shell)
+## Environment Variables & Configuration
 
-You can run these setup commands directly inside the browser-based **Google Cloud Shell** in the GCP Console:
+The container environment and Python controller respond to standard configuration variables:
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `PIPELINE` | `"tim"` | Task pipeline to execute (`"tim"` or `"war"`). |
+| `GCS_BUCKET` | *required* | Target GCS bucket name or URI (e.g. `"abend-lab-mri-analysis"` or `"gs://..."`). |
+| `SCRATCH_DIR` | `"/scratch"` | Local high-speed scratch mount (NVMe or internal SSD). |
+| `EXPORT_QC_PDFS` | `"true"` | If `"true"`, automatically runs `export_results.py` to upload QC PDFs to GCS. |
+| `KEEP_PB00_PB04` | `"0"` | Set to `"1"` to retain intermediate functional bricks; `"0"` automatically purges them. |
+| `BATCH_TASK_INDEX` | *(injected)* | Index of current task in Cloud Batch array ($0 \dots N-1$). |
+| `BATCH_TASK_COUNT` | *(injected)* | Total number of parallel tasks in Cloud Batch array. |
+| `CLOUD_RUN_TASK_INDEX` | *(injected)* | Index of current task in Cloud Run Jobs array ($0 \dots N-1$). |
+| `CLOUD_RUN_TASK_COUNT` | *(injected)* | Total number of parallel tasks in Cloud Run Jobs array. |
+
+---
+
+## Concurrency Architecture & Worker Sharding
+
+Cloud Batch and Cloud Run Jobs inject task index and count variables into each container. `cloud/gcs_helper.py` provides deterministic, partition-complete subject sharding:
+
+```python
+def shard_subjects_for_cloud_task(subjects: List[str]) -> List[str]:
+    """Returns the strided slice: subjects[task_index::task_count]."""
+```
+
+### Key Guarantees:
+1. **Mathematical Completeness**: Every subject is assigned to exactly one worker. No subjects are duplicated; no subjects are omitted.
+2. **Resource Isolation**: Each subject executes on an independent VM with dedicated 8 vCPUs and 16 GB RAM (`taskPack = 1`). Competing AFNI processes never contend for CPU or RAM.
+3. **Queueing Beyond Parallelism**: If 50 subjects are submitted with `parallelism: 10`, Cloud Batch provisions 10 concurrent VMs and automatically schedules the next queued task as soon as any active VM completes, purging `/scratch` between runs.
+
+---
+
+## Container Infrastructure (`Dockerfile` & `cloud/entrypoint.sh`)
+
+### Dockerfile Highlights
+- Base image: Official AFNI distribution (`afni/afni_make_build:AFNI_24.0.00` or Debian-based AFNI build).
+- Python environment: Python 3.8+ with `pandas`, `numpy`, `toml`, `rich`, `fpdf`, and headless Chrome for PDF conversion.
+- System tools: `dcm2niix`, `google-cloud-sdk`, `zip`, `unzip`, `bc`.
+
+### Entrypoint Workflow (`cloud/entrypoint.sh`)
+1. Detects `BATCH_TASK_INDEX` or `CLOUD_RUN_TASK_INDEX`.
+2. Validates `GCS_BUCKET` and creates `/scratch`.
+3. Calls `shard_subjects_for_cloud_task` in `run_analysis.py`.
+4. Executes the requested pipeline steps (`preprocess`, `glm`, `group_analysis`).
+5. Executes `export_results.py` if `EXPORT_QC_PDFS="true"`.
+6. Syncs final outputs and logs to GCS and cleans `/scratch`.
+
+---
+
+## One-Time GCP Setup Guide
+
+Run these commands in **Google Cloud Shell** to prepare the GCP project:
 
 ```bash
-# 1. Set your Project ID, Region, and Bucket Name
+# 1. Project variables
 export PROJECT_ID=$(gcloud config get-value project)
-export REGION="me-west1"   # or "us-central1"
+export REGION="us-central1"
 export BUCKET="abend-lab-mri-analysis"
 
-# 2. Enable Required GCP APIs
+# 2. Enable Required APIs
 gcloud services enable \
     artifactregistry.googleapis.com \
     cloudbuild.googleapis.com \
@@ -66,22 +176,22 @@ gcloud services enable \
     workflows.googleapis.com \
     storage.googleapis.com
 
-# 3. Create the GCS Bucket
+# 3. Create Storage Bucket
 gcloud storage buckets create "gs://${BUCKET}" --location="${REGION}"
 
-# 4. Create the Artifact Registry Docker Repository
+# 4. Create Artifact Registry Docker Repository
 gcloud artifacts repositories create mri-analysis \
     --repository-format=docker \
     --location="${REGION}" \
     --description="AFNI fMRI analysis container images"
 
-# 5. Build and Push the Docker Image using Cloud Build
+# 5. Build and Push Container Image via Cloud Build
 gcloud builds submit \
     --config=cloud/cloudbuild.yaml \
     --substitutions="_REGION=${REGION},_REPO=mri-analysis" \
     .
 
-# 6. Deploy the Cloud Workflow (for 1-Click Browser Execution)
+# 6. Deploy Google Cloud Workflow
 gcloud workflows deploy run-mri-pipeline \
     --source=cloud/workflow.yaml \
     --location="${REGION}"
@@ -89,38 +199,37 @@ gcloud workflows deploy run-mri-pipeline \
 
 ---
 
-## 3. Running Analyses Directly from the GCP Console UI
+## Executing Workflows via GCP Console
 
-Once `run-mri-pipeline` is deployed in **Cloud Workflows**, you never need a terminal to run analyses:
+Once `run-mri-pipeline` is deployed, researchers can launch full parallel analyses directly from the browser:
 
-1. Open the **Google Cloud Console** $\rightarrow$ **Workflows** $\rightarrow$ **`run-mri-pipeline`**.
+1. Open **GCP Console** $\rightarrow$ **Workflows** $\rightarrow$ **`run-mri-pipeline`**.
 2. Click **Execute**.
-3. Paste one of the JSON payloads below into the **Input** box and click **Execute**.
+3. Paste a JSON payload into the **Input** editor and click **Execute**.
 
-### Supported Workflow Input Parameters
+### Workflow Parameter Reference
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| **`job_name`** | `string` | *(auto-generated)* | Optional custom name tag for easy identification in Cloud Batch & Cloud Logging (e.g., `"cohort1-preproc"`). Produces job IDs like `mri-tim-cohort1-preproc-20261017t140000`. If omitted, auto-generates from the step and subject(s) (e.g., `mri-tim-preprocess-sub-435-20261017t140000`). |
-| **`pipeline`** | `string` | `"tim"` | Which task pipeline to run: `"tim"` or `"war"`. |
-| **`steps`** | `list[str]` | `["preprocess", "glm"]` | Steps to execute in sequence: `"create_timings"`, `"preprocess_anat"`, `"preprocess_func"`, `"preprocess"`, `"glm"`, `"all"`, or `"group_analysis"`. |
-| **`subjects`** | `list[str]` | `[]` *(all subjects)* | List of subject IDs (e.g., `["sub-435", "sub-473"]`). Each subject runs on its own isolated VM. |
-| **`analyses`** | `list[str]` | `[]` | First-level GLM model name(s), e.g. `["all"]` or `["sanity_check", "pain_by_rating"]`. |
-| **`group_model`** | `string` | `""` | Group analysis model name (required when `steps` is `["group_analysis"]`). |
-| **`session`** | `int`/`str` | `""` *(all sessions)* | Optional session number override (e.g., `1`). |
-| **`use_spot_vms`** | `bool` | `true` | `true` = use **Spot VMs** (~70% cheaper, `provisioningModel: "SPOT"`). `false` = use **Standard On-Demand VMs** (`provisioningModel: "STANDARD"`, guaranteed no preemption). |
-| **`export_qc_pdfs`** | `bool` | `true` | Automatically run `export_results.py` after pipeline steps to upload QC & GLM PDFs to `gs://<bucket>/reports/<pipeline>/`. |
-| **`parallelism`** | `int` | `10` | Maximum number of subject VMs to run concurrently. |
-| **`machine_type`** | `string` | `"e2-custom-8-16384"` | Compute Engine machine type per subject VM (8 vCPUs, 16 GB RAM). |
+| `job_name` | `string` | *(auto)* | Identifier tag for Cloud Batch and Cloud Logging (e.g. `"cohort1-preproc"`). |
+| `pipeline` | `string` | `"tim"` | Task pipeline: `"tim"` or `"war"`. |
+| `steps` | `list[str]` | `["preprocess", "glm"]` | Pipeline steps to execute (`create_timings`, `preprocess_anat`, `preprocess_func`, `glm`, `preprocess`, `all`, `group_analysis`). |
+| `subjects` | `list[str]` | `[]` *(all)* | Array of subject IDs to process. |
+| `analyses` | `list[str]` | `[]` | First-level GLM models (e.g. `["pain_by_rating"]` or `["all"]`). |
+| `group_model` | `string` | `""` | Name of group model (required for `group_analysis`). |
+| `use_spot_vms` | `bool` | `true` | `true` uses Spot VMs (~70% cost savings); `false` uses Standard On-Demand VMs. |
+| `export_qc_pdfs` | `bool` | `true` | Automatically compiles and uploads QC PDFs to `reports/`. |
+| `parallelism` | `int` | `10` | Maximum number of subject VMs executing concurrently. |
 
 ---
 
-### Example A: Run `preprocess` + `glm` on 10 TIM Subjects in Parallel
-*(Cloud Equivalent of `python tim_analysis/run_analysis.py --step preprocess glm` on 10 subjects)*
+### Execution Payloads
+
+#### Example 1: Parallel Preprocessing & GLM on 10 TIM Subjects (Spot VMs)
 
 ```json
 {
-  "job_name": "cohort1-preproc-glm",
+  "job_name": "tim-cohort1-full",
   "pipeline": "tim",
   "steps": ["preprocess", "glm"],
   "subjects": [
@@ -129,29 +238,26 @@ Once `run-mri-pipeline` is deployed in **Cloud Workflows**, you never need a ter
   ],
   "analyses": ["all"],
   "use_spot_vms": true,
-  "export_qc_pdfs": true
+  "export_qc_pdfs": true,
+  "parallelism": 10
 }
 ```
-**What happens automatically:**
-- Cloud Workflows launches a **Cloud Batch** job named `mri-tim-cohort1-preproc-glm-<timestamp>` with **10 parallel tasks** (`taskCount = 10`).
-- Each task (`BATCH_TASK_INDEX = 0..9`) runs on its own dedicated `e2-custom-8-16384` VM (8 vCPUs, 16 GB RAM, 40 GB `pd-balanced` disk), claims 1 subject, downloads `gs://abend-lab-mri-analysis/inputs/tim/sub-XXX.zip` onto its local `/scratch`, runs `create_timings` $\rightarrow$ `preprocess_anat` $\rightarrow$ `preprocess_func` (automatically deleting intermediate `pb00`–`pb04` bricks while keeping `pb05`, `fitts`, and `errts`) $\rightarrow$ `glm` across all TIM models, syncs each step's output to `gs://abend-lab-mri-analysis/outputs/tim/sub-XXX/`, exports QC PDFs to `gs://abend-lab-mri-analysis/reports/tim/`, and shuts down immediately when finished.
 
-### Example B: Run Specific GLM Model(s) on Already-Preprocessed WAR Subjects
+#### Example 2: First-Level GLM for Specific Models on WAR Subjects
 
 ```json
 {
-  "job_name": "war-block-image-glm",
+  "job_name": "war-glm-block-image",
   "pipeline": "war",
   "steps": ["glm"],
-  "subjects": ["sub-MD21", "sub-MD23", "sub-MD24", "sub-MD25"],
+  "subjects": ["sub-AL01", "sub-AL02", "sub-AL03"],
   "analyses": ["by_block", "by_image"],
   "use_spot_vms": true,
   "export_qc_pdfs": true
 }
 ```
-*(Since `preprocess` is already in GCS, each container skips raw input zip download, stages in `func_preproc/` and `timings/` from GCS, runs the requested GLMs, and uploads the new GLM results).*
 
-### Example C: Run Group Analysis (`3dttest++` or `3dLMEr`)
+#### Example 3: Group-Level Analysis (`3dLMEr` or `3dttest++`)
 
 ```json
 {
@@ -163,37 +269,12 @@ Once `run-mri-pipeline` is deployed in **Cloud Workflows**, you never need a ter
   "use_spot_vms": false
 }
 ```
-*(Runs a single worker that selectively stages only `mask_epi_anat.*` and `stats.*` files from GCS for all group subjects, executes `04_run_group_analysis.sh`, and uploads results to `gs://.../outputs/tim/group_analysis/pain_by_rating/pain_by_rating/`).*
 
 ---
 
-## 4. Concurrency Architecture & Resource Isolation
+## Alternative: Running via Cloud Run Jobs
 
-- **Dedicated VM Per Concurrent Subject**: Each task in a Cloud Batch job requests 8 vCPUs (`cpuMilli: 8000`), 16 GB RAM, and 40 GB `pd-balanced` disk on an `e2-custom-8-16384` VM (`taskPack = 1`). Concurrent subjects **never share CPU, RAM, or disk**.
-- **Automatic Task Sharding (`cloud/gcs_helper.py`)**: Cloud Batch injects `BATCH_TASK_INDEX` (`0..N-1`) and `BATCH_TASK_COUNT` (`N`) into each container. `shard_subjects_for_cloud_task()` assigns each task its dedicated subject slice `subjects[idx::total]`.
-- **Queueing Beyond `parallelism`**: If you pass 49 subjects with `parallelism: 10`, Cloud Batch runs 10 VMs concurrently and automatically starts the next queued subject as soon as any VM finishes, cleaning `/scratch` between subjects.
-
----
-
-## 5. Viewing Live Logs & Monitoring Jobs
-
-1. **In the GCP Console UI**:
-   - Navigate to **Batch** $\rightarrow$ **Job list**, click your job (e.g. `mri-tim-cohort1-preproc-glm-...`), and open the **Logs** tab.
-2. **Via `gcloud logging read` CLI (filtering out agent heartbeats)**:
-   ```bash
-   gcloud logging read 'logName="projects/neuroscience-lab/logs/batch_task_logs" AND labels.job_uid=~"mri-tim-"' \
-       --project=neuroscience-lab \
-       --limit=50 \
-       --format="value(textPayload)"
-   ```
-3. **Permanent Step Log Files in GCS**:
-   - At the end of every step, the full step log is also uploaded to `gs://abend-lab-mri-analysis/outputs/<pipeline>/logs/<subject>_<step>.log`.
-
----
-
-## 6. Alternative: Running via Cloud Run Jobs UI
-
-Because `cloud/entrypoint.sh` and `cloud/gcs_helper.py` read both `BATCH_TASK_INDEX` and `CLOUD_RUN_TASK_INDEX`, the exact same container image also works as a **Cloud Run Job**:
+The same Docker container can be launched as a serverless Cloud Run Job:
 
 ```bash
 gcloud run jobs create mri-tim-runner \
@@ -204,5 +285,34 @@ gcloud run jobs create mri-tim-runner \
     --task-timeout=3600s \
     --set-env-vars="PIPELINE=tim,GCS_BUCKET=${BUCKET},EXPORT_QC_PDFS=true"
 ```
-In the **Cloud Run Jobs** Console UI, click **Execute with overrides**, set **Number of tasks = 10**, and set container arguments to:
+
+In the **Cloud Run Jobs** console, select **Execute with overrides**, set **Tasks = 10**, and supply arguments:
 `--step preprocess glm --subject sub-435 sub-473 sub-489 sub-499 sub-500 sub-502 sub-503 sub-504 sub-505 sub-506`
+
+---
+
+## Live Log Inspection & Monitoring
+
+1. **GCP Console UI**:
+   - Go to **Batch** $\rightarrow$ **Job list** $\rightarrow$ Click Job $\rightarrow$ **Logs** tab.
+2. **Command Line (Cloud Logging)**:
+   ```bash
+   gcloud logging read 'logName="projects/neuroscience-lab/logs/batch_task_logs" AND labels.job_uid=~"mri-tim-"' \
+       --project=neuroscience-lab \
+       --limit=50 \
+       --format="value(textPayload)"
+   ```
+3. **Persistent Step Logs in GCS**:
+   - Every subject run uploads detailed stdout/stderr logs to:
+     `gs://abend-lab-mri-analysis/outputs/<pipeline>/logs/<subject>_<step>.log`
+
+---
+
+## Storage Optimization & Cost Containment
+
+1. **Spot VMs (`use_spot_vms: true`)**:
+   - Reduces Compute Engine VM costs by ~60–80%.
+2. **Intermediate Brick Purging (`KEEP_PB00_PB04=0`)**:
+   - Deleting `pb00` through `pb04` reduces output storage from ~30 GB to ~5 GB per subject, saving significant long-term GCS storage costs.
+3. **Scratch Auto-Cleanup (`cleanup_scratch = true`)**:
+   - Local ephemeral disks are completely wiped between runs, avoiding disk-full crashes on high-throughput VM workers.

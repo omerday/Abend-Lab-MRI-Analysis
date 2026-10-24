@@ -1,15 +1,10 @@
 #!/bin/bash
 
 # --- Script: utils_colors.sh ---
-# Description: Defines color codes and logging functions for prettier terminal output.
+# Description: Standard color definitions and logging helper functions for fMRI analysis scripts.
 
-# Define colors
+# Define ANSI color escape codes
 BOLD="\033[1m"
-
-# Ensure AFNI binaries are in PATH if available
-if [ -d "$HOME/abin" ] && [[ ":$PATH:" != *":$HOME/abin:"* ]]; then
-    export PATH="$HOME/abin:$PATH"
-fi
 RESET="\033[0m"
 RED="\033[1;31m"
 GREEN="\033[1;32m"
@@ -18,34 +13,39 @@ BLUE="\033[1;34m"
 CYAN="\033[1;36m"
 WHITE="\033[1;37m"
 
-# Header function
+# Ensure AFNI binaries are in PATH if available
+if [[ -n "${HOME:-}" ]] && [[ -d "${HOME}/abin" ]] && [[ ":${PATH:-}:" != *":${HOME}/abin:"* ]]; then
+    export PATH="${HOME}/abin:${PATH:-}"
+fi
+
+# Major section header
 print_header() {
     echo -e "\n${BLUE}${BOLD}============================================================${RESET}"
-    echo -e "${BLUE}${BOLD}   $1${RESET}"
+    echo -e "${BLUE}${BOLD}   ${1:-}${RESET}"
     echo -e "${BLUE}${BOLD}============================================================${RESET}\n"
 }
 
-# Sub-header function
+# Sub-section header
 print_subheader() {
-    echo -e "\n${CYAN}${BOLD}--- $1 ---${RESET}"
+    echo -e "\n${CYAN}${BOLD}--- ${1:-} ---${RESET}"
 }
 
-# Info message
+# Standard informational message
 log_info() {
-    echo -e "${WHITE}[INFO]${RESET} $1"
+    echo -e "${WHITE}[INFO]${RESET} ${1:-}"
 }
 
-# Success message
+# Success confirmation message
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${RESET} $1"
+    echo -e "${GREEN}[SUCCESS]${RESET} ${1:-}"
 }
 
 # Warning message
 log_warn() {
-    echo -e "${YELLOW}[WARN]${RESET} $1"
+    echo -e "${YELLOW}[WARN]${RESET} ${1:-}"
 }
 
-# Error message
+# Error message directed to stderr
 log_error() {
-    echo -e "${RED}[ERROR]${RESET} $1"
+    echo -e "${RED}[ERROR]${RESET} ${1:-}" >&2
 }

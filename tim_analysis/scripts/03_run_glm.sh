@@ -1,14 +1,15 @@
 #!/bin/bash
 
 # --- Script: 03_run_glm.sh ---
-# Description: Runs a specific GLM analysis on preprocessed data.
+# Description: Runs a specific GLM analysis on preprocessed data using afni_proc.py.
 
-set -e # Exit immediately if a command exits with a non-zero status.
+set -euo pipefail
 
 # Get the directory where the script is located
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 
 # Source the color utility script
+# shellcheck source=./utils_colors.sh
 source "${SCRIPT_DIR}/utils_colors.sh"
 
 # Default values
@@ -17,22 +18,45 @@ SESSION="1"
 INPUT_DIR=""
 OUTPUT_DIR=""
 ANALYSIS_NAME=""
+CONFIG_FILE="${CONFIG_FILE:-}"
 
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
-        --subject) SUBJECT="$2"; shift 2;;
-        --session) SESSION="$2"; shift 2;;
-        --input) INPUT_DIR="$2"; shift 2;;
-        --output) OUTPUT_DIR="$2"; shift 2;;
-        --analysis) ANALYSIS_NAME="$2"; shift 2;;
-        *) log_error "Unknown option: $1"; exit 1;;
+        --subject)
+            SUBJECT="$2"
+            shift 2
+            ;;
+        --session)
+            SESSION="$2"
+            shift 2
+            ;;
+        --input)
+            INPUT_DIR="$2"
+            shift 2
+            ;;
+        --output)
+            OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        --analysis)
+            ANALYSIS_NAME="$2"
+            shift 2
+            ;;
+        --config)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            exit 1
+            ;;
     esac
 done
 
 # Validate required arguments
-if [ -z "$SUBJECT" ] || [ -z "$SESSION" ] || [ -z "$INPUT_DIR" ] || [ -z "$OUTPUT_DIR" ] || [ -z "$ANALYSIS_NAME" ]; then
-    log_error "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir> --analysis <name>"
+if [[ -z "${SUBJECT}" ]] || [[ -z "${SESSION}" ]] || [[ -z "${INPUT_DIR}" ]] || [[ -z "${OUTPUT_DIR}" ]] || [[ -z "${ANALYSIS_NAME}" ]]; then
+    log_error "Usage: $0 --subject <ID> --session <N> --input <dir> --output <dir> --analysis <name> [--config <path>]"
     exit 1
 fi
 
@@ -40,46 +64,56 @@ SESSION_PREFIX="ses-${SESSION}"
 PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc/${SUBJECT}_preproc.results"
 GLM_OUTPUT_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/glm/${ANALYSIS_NAME}"
 TIMING_DIR="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func"
-if [ ! -d "${TIMING_DIR}/timings" ] && [ -d "${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/timings" ]; then
+if [[ ! -d "${TIMING_DIR}/timings" ]] && [[ -d "${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/timings" ]]; then
     TIMING_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}"
 fi
-if [ ! -f "$CONFIG_FILE" ]; then
+
+if [[ -z "${CONFIG_FILE}" ]]; then
     CONFIG_FILE="${SCRIPT_DIR}/../analysis_configs/analysis_models.toml"
 fi
 
-if [ ! -f "$CONFIG_FILE" ]; then
+if [[ ! -f "${CONFIG_FILE}" ]]; then
     log_error "Config file not found at ${CONFIG_FILE}"
     exit 1
 fi
 
 # --- Load Model Configuration from TOML file using Python ---
 eval "$(python3 -c "
-import toml, sys, shlex
+import sys, shlex
+try:
+    import tomllib
+    def load_toml(p):
+        with open(p, 'rb') as f:
+            return tomllib.load(f)
+except ImportError:
+    import toml
+    def load_toml(p):
+        with open(p, 'r', encoding='utf-8') as f:
+            return toml.load(f)
 
 try:
-    with open('$CONFIG_FILE') as f:
-        data = toml.load(f)
+    data = load_toml(r'$CONFIG_FILE')
     model = data.get('$ANALYSIS_NAME')
     if not model:
         sys.stderr.write(f'Model $ANALYSIS_NAME not found in $CONFIG_FILE\n')
         sys.exit(1)
-    
+
     stim_files = [f'$TIMING_DIR/{s}' for s in model.get('stim_files', [])]
     stim_labels = model.get('stim_labels', [])
     basis = model.get('basis', '')
     stim_types = model.get('stim_types', '')
-    
+
     stim_files_str = ' '.join(shlex.quote(s) for s in stim_files)
     stim_labels_str = ' '.join(shlex.quote(s) for s in stim_labels)
-    
+
     glt_items = []
     for i, g in enumerate(model.get('glt', []), 1):
         sym = g.get('sym', '')
         label = g.get('label', '')
         glt_items.extend(['-gltsym', f'SYM: {sym}', '-glt_label', str(i), label])
-    
+
     glt_items_str = ' '.join(shlex.quote(x) for x in glt_items)
-    
+
     print(f'STIM_PATHS=({stim_files_str})')
     print(f'STIM_LABELS=({stim_labels_str})')
     print(f'BASIS={shlex.quote(basis)}')
@@ -90,7 +124,7 @@ except Exception as e:
     sys.exit(1)
 ")"
 
-if [ ${#STIM_PATHS[@]} -eq 0 ]; then
+if [[ ${#STIM_PATHS[@]} -eq 0 ]]; then
     log_error "No stim_files found for model '${ANALYSIS_NAME}' in ${CONFIG_FILE}"
     exit 1
 fi
@@ -98,23 +132,22 @@ fi
 REGRESS_STIM_TIMES_ARGS=("-regress_stim_times" "${STIM_PATHS[@]}")
 REGRESS_STIM_LABELS_ARGS=("-regress_stim_labels" "${STIM_LABELS[@]}")
 
-
 print_header "Starting GLM Analysis (${ANALYSIS_NAME}) for ${SUBJECT}, ${SESSION_PREFIX}"
 
 # Clean up previous output directory
-if [ -d "$GLM_OUTPUT_DIR" ]; then
+if [[ -d "${GLM_OUTPUT_DIR}" ]]; then
     log_warn "Found existing GLM folder, deleting it: ${GLM_OUTPUT_DIR}"
-    rm -rf "$GLM_OUTPUT_DIR"
+    rm -rf "${GLM_OUTPUT_DIR}"
 fi
 
 # Create the output directory and cd into it
-mkdir -p "$GLM_OUTPUT_DIR"
-cd "$GLM_OUTPUT_DIR"
+mkdir -p "${GLM_OUTPUT_DIR}"
+cd "${GLM_OUTPUT_DIR}"
 
 # Conditionally add stim types
-STIM_TYPES_ARG=""
-if [ -n "$STIM_TYPES" ]; then
-    STIM_TYPES_ARG="-regress_stim_types $STIM_TYPES"
+STIM_TYPES_ARG=()
+if [[ -n "${STIM_TYPES}" ]]; then
+    STIM_TYPES_ARG=("-regress_stim_types" "${STIM_TYPES}")
 fi
 
 # Run afni_proc.py for the GLM
@@ -124,9 +157,9 @@ afni_proc.py \
     -blocks regress \
     "${REGRESS_STIM_TIMES_ARGS[@]}" \
     "${REGRESS_STIM_LABELS_ARGS[@]}" \
-    ${STIM_TYPES_ARG} \
-    -regress_basis "$BASIS" \
-    -regress_opts_3dD -jobs 8 "${GLT_ARGS[@]}" \
+    ${STIM_TYPES_ARG[@]+"${STIM_TYPES_ARG[@]}"} \
+    -regress_basis "${BASIS}" \
+    -regress_opts_3dD -jobs 8 ${GLT_ARGS[@]+"${GLT_ARGS[@]}"} \
     -regress_motion_file "${PREPROC_DIR}/dfile_rall.1D" \
     -regress_motion_per_run \
     -regress_censor_motion 0.5 \
@@ -148,7 +181,7 @@ MASK_FILE="${PREPROC_DIR}/mask_epi_anat.${SUBJECT}_preproc+tlrc"
 MASKED_STATS_FILE="${RESULTS_DIR}/masked_stats.${SUBJECT}_${ANALYSIS_NAME}"
 
 OLAY_DATASET="${STATS_FILE}.HEAD"
-if [ -f "${MASK_FILE}.HEAD" ]; then
+if [[ -f "${MASK_FILE}.HEAD" ]]; then
     log_info "Applying brain mask ${MASK_FILE} to ${STATS_FILE}..."
     3dcalc \
         -a "${STATS_FILE}" \
@@ -163,7 +196,7 @@ fi
 
 print_subheader "Exporting QC images using @chauffeur_afni"
 QC_DIR="QC"
-mkdir -p "$QC_DIR"
+mkdir -p "${QC_DIR}"
 
 for stim in "${STIM_LABELS[@]}"; do
     @chauffeur_afni                                             \
@@ -186,4 +219,3 @@ for stim in "${STIM_LABELS[@]}"; do
         -montx 3 -monty 3                                       \
         -label_mode 1 -label_size 4
 done
-

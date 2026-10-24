@@ -1,18 +1,50 @@
+"""Main analysis controller and CLI runner for the TIM pipeline.
+
+Orchestrates first-level neuroimaging workflow steps (timing generation,
+anatomical SSW normalization, multi-echo functional preprocessing, and
+first-level GLM regression) and group-level statistical models (3dttest++, 3dLMEr)
+for the Thermal Pain and Anticipation (TIM) task paradigm.
+
+AFNI Neuroimaging Parameters & Rationale:
+  - Repetition Time (TR = 2.0s): Temporal sampling rate (Nyquist 0.25 Hz),
+    synchronized with thermal stimulation, visual cues, and SCR epochs.
+  - Multi-Echo Echo Times (13.6, 25.96, 38.3 ms) & Optimal Combination (OC):
+    Estimates voxel-wise T2* decay to weight echo combinations, maximizing
+    contrast-to-noise ratio (CNR) and recovering signal in susceptibility
+    dropout zones (ventral prefrontal, insula).
+  - Anatomical Normalization (sswarper2): Non-linear warping to MNI152_2009
+    using Local Pearson Correlation (-cost_nl_final lpa), -giant_move, and
+    -minp 8 for robust alignment under B1 field inhomogeneities.
+  - Spatial Smoothing (4.0 mm FWHM): Isotropic Gaussian kernel preserving fine
+    topography in pain pathways (dpIns, aMCC, S1/S2) without ventricular bleeding.
+  - Motion Censoring (0.5 mm): Euclidean norm (enorm) threshold scrubbed to
+    prevent false positives from pain-correlated head motion.
+  - Outlier Censoring (0.05): Scrubs volumes where >5% of automasked voxels
+    are 3dToutcount outliers (eliminating respiratory or RF hardware spikes).
+  - Intermediate Storage Optimization (KEEP_PB00_PB04): Purges pb00-pb04
+    bricks while preserving pb05.scale, fitts, errts, motion, and stats.
+"""
+
 import argparse
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 import json
 import os
 import shutil
 import subprocess
 import sys
-import toml
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
+from typing import Any, Dict, List, Optional, Union
+
+try:
+    import toml
+except ImportError:
+    import tomllib as toml  # type: ignore
+
 from rich.console import Console
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn
-from rich import print as rprint
-from rich.traceback import install
 from rich.markup import escape
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeRemainingColumn
+from rich.traceback import install
 
 # Add repository root to sys.path so `cloud.gcs_helper` can be imported
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -22,7 +54,6 @@ if REPO_ROOT not in sys.path:
 from cloud.gcs_helper import (
     cleanup_pb00_to_pb04,
     gcs_download_wildcard,
-    gcs_path_exists,
     gcs_sync_down,
     gcs_sync_up,
     gcs_upload_file,
@@ -38,15 +69,21 @@ install()
 console = Console()
 
 
-def expand_steps(step_args):
-    """
-    Expand composite step names ('preprocess', 'all') and deduplicate while
-    preserving execution order. Supports e.g. `--step preprocess glm`.
+def expand_steps(step_args: Union[str, List[str]]) -> List[str]:
+    """Expand composite step names ('preprocess', 'all') and deduplicate while preserving execution order.
+
+    Supports e.g. `--step preprocess glm` or `--step all`.
+
+    Args:
+        step_args: Single step string or list of step strings.
+
+    Returns:
+        Expanded, ordered list of concrete individual step names.
     """
     if isinstance(step_args, str):
         step_args = [step_args]
 
-    expanded = []
+    expanded: List[str] = []
     for s in step_args:
         if s == "all":
             seq = ["create_timings", "preprocess_anat", "preprocess_func", "glm"]
@@ -60,10 +97,25 @@ def expand_steps(step_args):
     return expanded
 
 
-def stage_in_prerequisites(subject_id, session_id_str, step_name, config, active_output_dir, active_input_dir):
-    """
-    Ensure required prerequisite datasets exist in active working/scratch directory.
+def stage_in_prerequisites(
+    subject_id: str,
+    session_id_str: str,
+    step_name: str,
+    config: Dict[str, Any],
+    active_output_dir: str,
+    active_input_dir: Optional[str],
+) -> None:
+    """Ensure required prerequisite datasets exist in active working/scratch directory.
+
     If missing locally, stages them in from the permanent output directory (local or GCS).
+
+    Args:
+        subject_id: Subject identifier string (e.g. 'sub-435').
+        session_id_str: Numerical or string session identifier (e.g. '1').
+        step_name: Current step name ('preprocess_func', 'glm', etc.).
+        config: Parsed main_config dictionary.
+        active_output_dir: Active output scratch directory path.
+        active_input_dir: Active input directory path.
     """
     perm_output_root = config["output_dir"]
     if active_output_dir == perm_output_root and not is_gcs_uri(perm_output_root):
@@ -109,13 +161,18 @@ def stage_in_prerequisites(subject_id, session_id_str, step_name, config, active
                 console.log(f"[yellow]Warning:[/] Pre-requisite func_preproc not found on permanent drive at: {perm_func}")
 
         # Ensure timings exist locally (either in active_input_dir or staged from output_dir/timings)
-        local_input_timings = os.path.join(active_input_dir, subject_id, session_prefix, "func", "timings")
+        local_input_timings = (
+            os.path.join(active_input_dir, subject_id, session_prefix, "func", "timings")
+            if active_input_dir
+            else ""
+        )
         local_output_timings = os.path.join(local_session_dir, "timings")
         perm_timings = join_uri(perm_session_dir, "timings")
 
-        if (not os.path.exists(local_input_timings) or not os.listdir(local_input_timings)) and (
-            not os.path.exists(local_output_timings) or not os.listdir(local_output_timings)
-        ):
+        has_input_timings = os.path.exists(local_input_timings) and bool(os.listdir(local_input_timings))
+        has_output_timings = os.path.exists(local_output_timings) and bool(os.listdir(local_output_timings))
+
+        if not has_input_timings and not has_output_timings:
             if is_gcs_uri(perm_output_root):
                 console.log(f"[dim]Staging in timings from GCS for {subject_id} ({session_prefix})...[/]")
                 gcs_sync_down(perm_timings, local_output_timings)
@@ -124,11 +181,27 @@ def stage_in_prerequisites(subject_id, session_id_str, step_name, config, active
                 subprocess.run(["rsync", "-a", f"{perm_timings}/", f"{local_output_timings}/"], check=True)
 
 
-def stage_out_step(subject_id, session_id_str, step_name, config, active_output_dir, active_input_dir=None, analysis_name=None, remove_local=False):
-    """
-    Sync ONLY the specific output directory created by the executed step
-    from active scratch back to the permanent output drive or GCS bucket.
-    If remove_local is True, removes the local scratch directory after syncing.
+def stage_out_step(
+    subject_id: str,
+    session_id_str: str,
+    step_name: str,
+    config: Dict[str, Any],
+    active_output_dir: str,
+    active_input_dir: Optional[str] = None,
+    analysis_name: Optional[str] = None,
+    remove_local: bool = False,
+) -> None:
+    """Sync specific step output directory from scratch back to permanent storage or GCS.
+
+    Args:
+        subject_id: Subject identifier.
+        session_id_str: Session identifier string.
+        step_name: Name of completed step.
+        config: Parsed main configuration.
+        active_output_dir: Active output scratch directory.
+        active_input_dir: Optional active input scratch directory.
+        analysis_name: Model name for GLM steps.
+        remove_local: If True, deletes local scratch directory after syncing.
     """
     perm_output_root = config["output_dir"]
     session_prefix = f"ses-{session_id_str}"
@@ -170,16 +243,17 @@ def stage_out_step(subject_id, session_id_str, step_name, config, active_output_
         label = f"{step_name}" if step_name != "glm" else f"glm: {analysis_name}"
         label_str = escape(f"[{label}]")
         action_verb = "Moving" if remove_local else "Syncing"
+
         if is_gcs_uri(perm_output_root):
             console.log(f"[cyan]Uploading {subject_id} ({session_prefix}) [{label}] output to GCS ({perm_path})...[/]")
             gcs_sync_up(local_path, perm_path)
-            # Free local scratch space immediately after syncing each GLM model to GCS
             if step_name == "glm" and config.get("cleanup_scratch", True):
                 shutil.rmtree(local_path, ignore_errors=True)
         else:
             os.makedirs(perm_path, exist_ok=True)
             console.log(f"[cyan]{action_verb} {subject_id} ({session_prefix}) {label_str} output to permanent drive...[/]")
             subprocess.run(["rsync", "-av", "--update", f"{local_path}/", f"{perm_path}/"], check=True)
+
         if remove_local and config.get("cleanup_scratch", True):
             shutil.rmtree(local_path, ignore_errors=True)
             parent_glm_dir = os.path.dirname(local_path)
@@ -190,7 +264,12 @@ def stage_out_step(subject_id, session_id_str, step_name, config, active_output_
                     pass
 
 
-def cleanup_subject_scratch(subject_id, active_output_dir, active_input_dir, config):
+def cleanup_subject_scratch(
+    subject_id: str,
+    active_output_dir: str,
+    active_input_dir: Optional[str],
+    config: Dict[str, Any],
+) -> None:
     """Clean up local scratch folders for subject if configured."""
     if not config.get("cleanup_scratch", True):
         return
@@ -208,7 +287,16 @@ def cleanup_subject_scratch(subject_id, active_output_dir, active_input_dir, con
             shutil.rmtree(local_sub_in, ignore_errors=True)
 
 
-def run_step(subject, session, active_input_dir, config, analysis_name, step_name, active_output_dir, extra_args=None):
+def run_step(
+    subject: str,
+    session: str,
+    active_input_dir: str,
+    config: Dict[str, Any],
+    analysis_name: Optional[str],
+    step_name: str,
+    active_output_dir: str,
+    extra_args: Optional[List[str]] = None,
+) -> bool:
     """Helper function to run a single shell script for a subject."""
     script_map = {
         "create_timings": "00_create_timings.sh",
@@ -271,11 +359,12 @@ def run_step(subject, session, active_input_dir, config, analysis_name, step_nam
                     universal_newlines=True,
                     bufsize=1,
                 )
-                for line in process.stdout:
-                    log_file.write(line)
-                    log_file.flush()
-                    sys.stdout.write(f"[{subject}|{step_name}] {line}")
-                    sys.stdout.flush()
+                if process.stdout:
+                    for line in process.stdout:
+                        log_file.write(line)
+                        log_file.flush()
+                        sys.stdout.write(f"[{subject}|{step_name}] {line}")
+                        sys.stdout.flush()
                 process.wait()
             else:
                 process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT, env=env)
@@ -288,19 +377,26 @@ def run_step(subject, session, active_input_dir, config, analysis_name, step_nam
     if process.returncode == 0:
         console.log(f"[green]✓ {step_name}[/] completed for [bold]{subject}[/]")
         return True
-    else:
-        console.log(f"[bold red]✖ {step_name}[/] failed for [bold]{subject}[/]. See log: [underline]{log_file_path}[/]")
-        if os.path.exists(log_file_path):
-            try:
-                with open(log_file_path, "r", errors="replace") as lf:
-                    tail_lines = lf.readlines()[-30:]
-                console.log("[red]--- Last 30 lines of step log ---[/]\n" + "".join(tail_lines))
-            except Exception:
-                pass
-        return False
+
+    console.log(f"[bold red]✖ {step_name}[/] failed for [bold]{subject}[/]. See log: [underline]{log_file_path}[/]")
+    if os.path.exists(log_file_path):
+        try:
+            with open(log_file_path, "r", errors="replace") as lf:
+                tail_lines = lf.readlines()[-30:]
+            console.log("[red]--- Last 30 lines of step log ---[/]\n" + "".join(tail_lines))
+        except Exception:
+            pass
+    return False
 
 
-def process_subject(subject_id, args, main_config, analysis_models, progress=None, task_id=None):
+def process_subject(
+    subject_id: str,
+    args: argparse.Namespace,
+    main_config: Dict[str, Any],
+    analysis_models: Dict[str, Any],
+    progress: Optional[Any] = None,
+    task_id: Optional[Any] = None,
+) -> None:
     """Runs the requested pipeline steps for a single subject."""
     use_scratch = not getattr(args, "no_scratch", False)
     scratch_root = getattr(args, "scratch_dir", None) or main_config.get("scratch_dir", "/tmp/afni_scratch")
@@ -338,7 +434,6 @@ def process_subject(subject_id, args, main_config, analysis_models, progress=Non
     try:
         steps_to_run = expand_steps(args.step)
 
-        # Stage in raw BIDS input (or unzip from GCS/local zip) if any step needs input files
         needs_raw_input = any(s in steps_to_run for s in ["create_timings", "preprocess_anat", "preprocess_func"])
         if needs_raw_input or is_gcs_uri(main_config["input_dir"]):
             try:
@@ -348,9 +443,9 @@ def process_subject(subject_id, args, main_config, analysis_models, progress=Non
                     scratch_root=scratch_root,
                     console=console,
                 )
-            except FileNotFoundError as e:
+            except FileNotFoundError as exc:
                 if needs_raw_input:
-                    console.log(f"[bold red]Error staging input for {subject_id}:[/] {e}")
+                    console.log(f"[bold red]Error staging input for {subject_id}:[/] {exc}")
                     return
                 active_input_dir = os.path.join(scratch_root, "input")
         else:
@@ -388,7 +483,7 @@ def process_subject(subject_id, args, main_config, analysis_models, progress=Non
 
                 if step == "glm":
                     if not analysis_names:
-                        console.log(f"[red]Error:[/] --analysis is required for 'glm' step.")
+                        console.log("[red]Error:[/] --analysis is required for 'glm' step.")
                         break
 
                     all_glm_success = True
@@ -418,7 +513,6 @@ def process_subject(subject_id, args, main_config, analysis_models, progress=Non
                             all_glm_success = False
                             break
 
-                        # Move GLM results to permanent output drive after each GLM model
                         stage_out_step(
                             subject_id,
                             session_id_str,
@@ -427,7 +521,7 @@ def process_subject(subject_id, args, main_config, analysis_models, progress=Non
                             active_output_dir,
                             active_input_dir=active_input_dir,
                             analysis_name=analysis_name,
-                            remove_local=True
+                            remove_local=True,
                         )
 
                     if not all_glm_success:
@@ -464,12 +558,14 @@ def process_subject(subject_id, args, main_config, analysis_models, progress=Non
         progress.update(task_id, advance=1)
 
 
-def _stage_group_subject_files(config, scratch_root, sub_id, ses_id, analysis_name):
-    """
-    For group_analysis when output_dir is on GCS, selectively download ONLY the mask
-    and stats files for (sub_id, ses_id, analysis_name) into local scratch.
-    Returns the local root directory mirroring output_dir structure.
-    """
+def _stage_group_subject_files(
+    config: Dict[str, Any],
+    scratch_root: str,
+    sub_id: str,
+    ses_id: Any,
+    analysis_name: str,
+) -> str:
+    """For group_analysis on GCS, selectively download mask and stats files into local scratch."""
     perm_output = config["output_dir"]
     if not is_gcs_uri(perm_output):
         return perm_output
@@ -498,28 +594,35 @@ def _stage_group_subject_files(config, scratch_root, sub_id, ses_id, analysis_na
     return local_out_root
 
 
-def run_group_analysis(args, config, analysis_models):
+def run_group_analysis(
+    args: argparse.Namespace,
+    config: Dict[str, Any],
+    analysis_models: Dict[str, Any],
+) -> bool:
     """Runs a specified group-level analysis with optional scratch and GCS acceleration."""
     console.print(Panel(f"Group Analysis: [bold cyan]{args.group_model}[/]", style="bold blue"))
 
     if not args.analysis or len(args.analysis) > 1:
         console.log("[red]Error:[/] Please specify exactly one first-level analysis model using --analysis.")
-        return
+        return False
     analysis_name = args.analysis[0]
 
     if not args.group_model:
         console.log("[red]Error:[/] Please specify a group analysis model using --group_model.")
-        return
+        return False
 
     f_level_model = analysis_models.get(analysis_name)
     if not f_level_model:
         console.log(f"[red]Error:[/] First-level analysis '{analysis_name}' not found.")
-        return
+        return False
 
-    group_model_config = next((g for g in f_level_model.get("group_analyses", []) if g["name"] == args.group_model), None)
+    group_model_config = next(
+        (g for g in f_level_model.get("group_analyses", []) if g["name"] == args.group_model),
+        None,
+    )
     if not group_model_config:
         console.log(f"[red]Error:[/] Group analysis model '{args.group_model}' not found under '{analysis_name}'.")
-        return
+        return False
 
     use_scratch = not getattr(args, "no_scratch", False)
     scratch_root = getattr(args, "scratch_dir", None) or config.get("scratch_dir", "/tmp/afni_scratch")
@@ -543,7 +646,7 @@ def run_group_analysis(args, config, analysis_models):
 
         if "subjects" in group_model_config:
             custom_subjects = group_model_config["subjects"]
-            subjects_ids_to_include = []
+            subjects_ids_to_include: List[str] = []
 
             if isinstance(custom_subjects, list):
                 subjects_ids_to_include = custom_subjects
@@ -572,9 +675,9 @@ def run_group_analysis(args, config, analysis_models):
 
         if not subjects_to_process:
             console.log("[red]Error:[/] No subjects to process after filtering.")
-            return
+            return False
 
-        mask_files = []
+        mask_files: List[str] = []
         for sub_info in subjects_to_process:
             for ses_id in group_model_config.get("sessions", [1]):
                 local_data_root = _stage_group_subject_files(
@@ -595,7 +698,7 @@ def run_group_analysis(args, config, analysis_models):
 
         if not mask_files:
             console.log("[red]Error:[/] No mask files found.")
-            return
+            return False
 
         group_mask_path = os.path.join(active_output_dir, "group_mask")
         subprocess.run(
@@ -622,19 +725,17 @@ def run_group_analysis(args, config, analysis_models):
             table_columns = group_model_config.get("table_columns", [])
             if not table_columns:
                 console.log("[red]Error:[/] 'table_columns' is missing in config.")
-                return
+                return False
             header_columns = ["Subj"] + table_columns + ["InputFile"]
             header = "\t".join(header_columns) + "\n"
 
             data_table_path = os.path.join(active_output_dir, "data_table.txt")
-
             if "data_table_rows" not in group_model_config:
                 console.log("[red]Error:[/] 'data_table_rows' is missing in config.")
-                return
+                return False
 
             with open(data_table_path, "w") as f:
                 f.write(header)
-
                 for sub_info in subjects_to_process:
                     for ses_id in group_model_config.get("sessions", [1]):
                         local_data_root = _stage_group_subject_files(
@@ -642,7 +743,6 @@ def run_group_analysis(args, config, analysis_models):
                         )
                         for row_def in group_model_config["data_table_rows"]:
                             contrast_name = row_def["contrast"]
-
                             stats_file = os.path.join(
                                 local_data_root,
                                 sub_info["id"],
@@ -662,36 +762,31 @@ def run_group_analysis(args, config, analysis_models):
                                 "group": sub_info.get("group", "NA"),
                                 "InputFile": stats_file,
                             }
-
                             for key, value in row_def.items():
                                 if key != "contrast":
                                     row_data[key] = value
 
                             line_parts = [str(row_data.get(col_name, "NA")) for col_name in header_columns]
-                            line = "\t".join(line_parts) + "\n"
-                            f.write(line)
+                            f.write("\t".join(line_parts) + "\n")
 
             glt_codes = " ".join([f"-gltCode {g['label']} \"{g['sym']}\"" for g in group_model_config.get("glt", [])])
-
-            command.extend(
-                [
-                    "--data_table",
-                    data_table_path,
-                    "--model",
-                    group_model_config["model"],
-                    "--glt_codes",
-                    glt_codes,
-                ]
-            )
+            command.extend([
+                "--data_table",
+                data_table_path,
+                "--model",
+                group_model_config["model"],
+                "--glt_codes",
+                glt_codes,
+            ])
 
         elif analysis_type == "3dttest++":
             setA_label = group_model_config.get("setA_label")
             contrast_name = group_model_config.get("contrast")
             if not setA_label or not contrast_name:
                 console.log("[red]Error:[/] 3dttest++ requires 'setA_label' and 'contrast'.")
-                return
+                return False
 
-            setA_files = []
+            setA_files: List[str] = []
             for sub_info in subjects_to_process:
                 for ses_id in group_model_config.get("sessions", [1]):
                     local_data_root = _stage_group_subject_files(
@@ -709,7 +804,6 @@ def run_group_analysis(args, config, analysis_models):
                     if not os.path.exists(stats_file.split("[")[0] + ".HEAD"):
                         console.log(f"[yellow]Warning:[/] Stats file not found: {stats_file}")
                         continue
-
                     setA_files.append(sub_info["id"])
                     setA_files.append(f"{stats_file}")
 
@@ -739,8 +833,10 @@ def run_group_analysis(args, config, analysis_models):
                 console.log("[cyan]Syncing group analysis results to permanent output drive...[/]")
                 subprocess.run(["rsync", "-av", "--update", f"{active_output_dir}/", f"{perm_output_dir}/"], check=True)
                 console.log(f"[bold green]SUCCESS:[/] Results preserved in: {perm_output_dir}")
-        else:
-            console.log(f"[bold red]ERROR:[/] Group analysis failed. Check log: {log_file_path}")
+            return True
+
+        console.log(f"[bold red]ERROR:[/] Group analysis failed. Check log: {log_file_path}")
+        return False
 
     finally:
         if (active_output_dir != perm_output_dir or is_gcs_uri(perm_output_dir)) and config.get("cleanup_scratch", True):
@@ -749,50 +845,59 @@ def run_group_analysis(args, config, analysis_models):
             shutil.rmtree(os.path.join(scratch_root, "group_inputs"), ignore_errors=True)
 
 
-def main():
-    """Main function to run the analysis pipeline."""
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """Parse command line arguments for TIM analysis pipeline."""
     parser = argparse.ArgumentParser(description="fMRI Analysis Pipeline Runner for TIM task")
     parser.add_argument(
         "--subject",
         nargs="*",
-        help="Specify subject IDs to process (e.g., sub-489). Overrides subject lists in configs.",
+        default=["all"],
+        help="Specify subject IDs to process (e.g., sub-489) or 'all'.",
     )
     parser.add_argument(
         "--analysis",
         nargs="*",
+        default=["all"],
         help="Specify one or more analysis models to run for 'glm', 'all', or 'group_analysis' step.",
     )
     parser.add_argument(
         "--step",
         nargs="+",
-        choices=["preprocess", "create_timings", "preprocess_anat", "preprocess_func", "glm", "all", "group_analysis"],
-        required=True,
+        default=["all"],
         help="One or more processing steps to execute in sequence (e.g., --step preprocess glm).",
     )
     parser.add_argument(
         "--session",
-        help="Specify the session number (e.g., 1). If not provided, all sessions for the subject(s) will be processed.",
+        type=int,
+        default=None,
+        help="Specify the session number (e.g., 1). If omitted, all sessions will be processed.",
     )
     parser.add_argument("--n_procs", type=int, default=1, help="Number of subjects to process in parallel.")
-    parser.add_argument("--group_model", help="Specify the group analysis model name to run (required for 'group_analysis' step).")
-    parser.add_argument("--scratch_dir", help="Override scratch directory path.")
-    parser.add_argument("--no_scratch", action="store_true", help="Disable local scratch directory and write directly to output_dir.")
-    parser.add_argument("--input_dir", help="Override input_dir from main_config.toml (supports local path or gs:// URI).")
-    parser.add_argument("--output_dir", help="Override output_dir from main_config.toml (supports local path or gs:// URI).")
-    parser.add_argument("--keep_pb00_pb04", action="store_true", help="Keep intermediate pb00-pb04 functional preprocessing bricks.")
+    parser.add_argument("--group_model", default="all", help="Specify the group analysis model name to run.")
+    parser.add_argument("--scratch_dir", default=None, help="Override scratch directory path.")
+    parser.add_argument("--clean_scratch", action="store_true", help="Clean scratch upon finish.")
+    parser.add_argument("--no_scratch", action="store_true", help="Disable local scratch directory.")
+    parser.add_argument("--input_dir", default=None, help="Override input_dir from main_config.toml.")
+    parser.add_argument("--output_dir", default=None, help="Override output_dir from main_config.toml.")
+    parser.add_argument("--keep_pb00_pb04", action="store_true", help="Keep intermediate pb00-pb04 bricks.")
+    return parser.parse_args(argv)
 
-    args = parser.parse_args()
 
+def main(argv: Optional[List[str]] = None) -> int:
+    """Main entry point to run the TIM analysis pipeline."""
+    args = parse_args(argv)
     step_display = ", ".join(args.step) if isinstance(args.step, list) else str(args.step)
     console.print(Panel(f"fMRI Analysis Pipeline (TIM)\n[dim]Step(s): {step_display}[/]", style="bold blue"))
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     try:
-        main_config = json.loads(json.dumps(toml.load(os.path.join(base_dir, "analysis_configs", "main_config.toml"))))
-        analysis_models = json.loads(json.dumps(toml.load(os.path.join(base_dir, "analysis_configs", "analysis_models.toml"))))
-    except FileNotFoundError as e:
-        console.print(f"[bold red]Error:[/] Configuration file not found. {e}")
-        return
+        main_config_path = os.path.join(base_dir, "analysis_configs", "main_config.toml")
+        models_config_path = os.path.join(base_dir, "analysis_configs", "analysis_models.toml")
+        main_config = json.loads(json.dumps(toml.load(main_config_path) if hasattr(toml, "load") else toml.loads(open(main_config_path).read())))
+        analysis_models = json.loads(json.dumps(toml.load(models_config_path) if hasattr(toml, "load") else toml.loads(open(models_config_path).read())))
+    except FileNotFoundError as exc:
+        console.print(f"[bold red]Error:[/] Configuration file not found. {exc}")
+        return 1
 
     # Allow CLI or environment variable overrides for cloud execution
     if args.input_dir or os.environ.get("MRI_INPUT_DIR"):
@@ -801,16 +906,18 @@ def main():
         main_config["output_dir"] = args.output_dir or os.environ["MRI_OUTPUT_DIR"]
     if args.keep_pb00_pb04 or os.environ.get("KEEP_PB00_PB04") == "1":
         main_config["keep_pb00_pb04"] = True
+    if args.clean_scratch:
+        main_config["cleanup_scratch"] = True
 
     if "group_analysis" in args.step:
-        run_group_analysis(args, main_config, analysis_models)
-        return
+        success = run_group_analysis(args, main_config, analysis_models)
+        return 0 if success else 1
 
     expanded_steps = expand_steps(args.step)
 
-    subjects_to_process_ids = []
-    if args.subject:
-        subjects_to_process_ids = [subj for subj in args.subject]
+    subjects_to_process_ids: List[str] = []
+    if args.subject and args.subject != ["all"] and args.subject != "all":
+        subjects_to_process_ids = [subj for subj in args.subject] if isinstance(args.subject, list) else [args.subject]
     elif args.analysis and args.analysis != ["all"] and "glm" in expanded_steps:
         first_analysis = args.analysis[0]
         model = analysis_models.get(first_analysis, {})
@@ -830,13 +937,13 @@ def main():
 
     if not subjects_to_process_ids:
         console.print("[yellow]No subjects found to process for this task. Exiting cleanly.[/]")
-        return
+        return 0
 
     if args.analysis and args.analysis != ["all"]:
         for analysis_name in args.analysis:
             if analysis_name not in analysis_models:
                 console.print(f"[bold red]Error:[/] Analysis model '{analysis_name}' not found.")
-                return
+                return 1
 
     console.print(f"Processing [bold cyan]{len(subjects_to_process_ids)}[/] subject(s): {subjects_to_process_ids}")
 
@@ -848,12 +955,10 @@ def main():
         TimeRemainingColumn(),
         console=console,
     ) as progress:
-
         main_task = progress.add_task("[green]Overall Progress", total=len(subjects_to_process_ids))
 
         if args.n_procs > 1 and len(subjects_to_process_ids) > 1:
             console.log(f"[yellow]Parallel processing with {args.n_procs} cores enabled.[/]")
-
             worker_func = partial(
                 process_subject,
                 args=args,
@@ -862,7 +967,6 @@ def main():
                 progress=None,
                 task_id=None,
             )
-
             with ProcessPoolExecutor(max_workers=args.n_procs) as executor:
                 futures = [executor.submit(worker_func, sub_id) for sub_id in subjects_to_process_ids]
                 for future in futures:
@@ -873,7 +977,8 @@ def main():
                 process_subject(subject_id, args, main_config, analysis_models, progress, main_task)
 
     console.print(Panel("[bold green]All processing complete[/]", style="green"))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
