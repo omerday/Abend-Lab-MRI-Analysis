@@ -115,8 +115,7 @@ if [ "$#" -gt 0 ]; then
         export_results.py|concatenate_reports.py)
             SCRIPT="$1"
             shift
-            python3 "$SCRIPT" "$@"
-            exit 0
+            exec python3 "$SCRIPT" "$@"
             ;;
         bash|sh|python|python3)
             # For interactive/subshell, stop Xvfb before exec if we spawned it
@@ -131,9 +130,3 @@ fi
 
 # Otherwise, pass all arguments to run_analysis.py
 python3 run_analysis.py --scratch_dir "$SCRATCH_DIR" "$@"
-
-# Run export_results.py if EXPORT_QC_PDFS is true and MRI_REPORTS_DIR is set
-if [ "$EXPORT_QC_PDFS" = "true" ] && [ -n "${MRI_REPORTS_DIR:-}" ]; then
-    echo "--- Exporting QC PDFs to ${MRI_REPORTS_DIR} ---"
-    python3 export_results.py --output_dir "${MRI_OUTPUT_DIR:-}" --dropbox_dir "$MRI_REPORTS_DIR" || true
-fi

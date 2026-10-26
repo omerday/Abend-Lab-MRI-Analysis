@@ -33,6 +33,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Any, Dict, List, Optional, Union
 
 try:
@@ -46,10 +47,19 @@ from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeRemainingColumn
 from rich.traceback import install
 
-# Add repository root to sys.path so `cloud.gcs_helper` can be imported
+# Add repository root and pipeline directory to sys.path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
+
+PIPELINE_DIR = os.path.dirname(os.path.abspath(__file__))
+if PIPELINE_DIR not in sys.path:
+    sys.path.insert(0, PIPELINE_DIR)
+
+try:
+    from export_results import export_subject_results
+except ImportError:
+    export_subject_results = None  # type: ignore
 
 from cloud.gcs_helper import (
     cleanup_pb00_to_pb04,
@@ -396,8 +406,13 @@ def process_subject(
     analysis_models: Dict[str, Any],
     progress: Optional[Any] = None,
     task_id: Optional[Any] = None,
-) -> None:
-    """Runs the requested pipeline steps for a single subject."""
+) -> bool:
+    """Runs the requested pipeline steps for a single subject.
+
+    Returns:
+        bool: True if all requested sessions and steps completed successfully,
+              False if any step, staging, or validation failed.
+    """
     use_scratch = not getattr(args, "no_scratch", False)
     scratch_root = getattr(args, "scratch_dir", None) or main_config.get("scratch_dir", "/tmp/afni_scratch")
 
@@ -419,16 +434,16 @@ def process_subject(
             session_config = next((ses for ses in subject_config.get("sessions", []) if ses.get("id") == session_id_to_find), None)
             if not session_config:
                 console.log(f"[red]Error:[/] Session '{args.session}' not found for {subject_id}. Aborting.")
-                return
+                return False
             sessions_to_process_configs.append(session_config)
         except ValueError:
             console.log(f"[red]Error:[/] --session must be an integer. Got '{args.session}'.")
-            return
+            return False
     else:
         sessions_to_process_configs = subject_config.get("sessions", [])
         if not sessions_to_process_configs:
             console.log(f"[yellow]Warning:[/] No sessions found for {subject_id}. Skipping.")
-            return
+            return False
 
     active_input_dir = None
     try:
@@ -446,7 +461,7 @@ def process_subject(
             except FileNotFoundError as exc:
                 if needs_raw_input:
                     console.log(f"[bold red]Error staging input for {subject_id}:[/] {exc}")
-                    return
+                    return False
                 active_input_dir = os.path.join(scratch_root, "input")
         else:
             active_input_dir = main_config["input_dir"]
@@ -484,9 +499,8 @@ def process_subject(
                 if step == "glm":
                     if not analysis_names:
                         console.log("[red]Error:[/] --analysis is required for 'glm' step.")
-                        break
+                        return False
 
-                    all_glm_success = True
                     for analysis_name in analysis_names:
                         analysis_model_config = analysis_models.get(analysis_name, {})
                         requires_scr = analysis_model_config.get("requires_scr", False)
@@ -510,8 +524,8 @@ def process_subject(
                             extra_args=extra_args,
                         )
                         if not success:
-                            all_glm_success = False
-                            break
+                            console.log(f"[red]Stopping pipeline for {subject_id} because GLM step '{analysis_name}' failed.[/]")
+                            return False
 
                         stage_out_step(
                             subject_id,
@@ -523,10 +537,6 @@ def process_subject(
                             analysis_name=analysis_name,
                             remove_local=True,
                         )
-
-                    if not all_glm_success:
-                        console.log(f"[red]Stopping pipeline for {subject_id} because a GLM step failed.[/]")
-                        break
                 else:
                     success = run_step(
                         subject=subject_id,
@@ -540,7 +550,7 @@ def process_subject(
                     )
                     if not success:
                         console.log(f"[red]Stopping pipeline for {subject_id} because '{step}' failed.[/]")
-                        break
+                        return False
 
                     stage_out_step(
                         subject_id,
@@ -551,11 +561,12 @@ def process_subject(
                         active_input_dir=active_input_dir,
                     )
 
+        return True
+    except Exception as exc:
+        console.log(f"[bold red]Unexpected error processing {subject_id}:[/] {exc}")
+        return False
     finally:
         cleanup_subject_scratch(subject_id, active_output_dir, active_input_dir, main_config)
-
-    if progress and task_id:
-        progress.update(task_id, advance=1)
 
 
 def _stage_group_subject_files(
@@ -879,7 +890,9 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--no_scratch", action="store_true", help="Disable local scratch directory.")
     parser.add_argument("--input_dir", default=None, help="Override input_dir from main_config.toml.")
     parser.add_argument("--output_dir", default=None, help="Override output_dir from main_config.toml.")
+    parser.add_argument("--reports_dir", default=None, help="Override reports_dir / destination for exported QC PDFs.")
     parser.add_argument("--keep_pb00_pb04", action="store_true", help="Keep intermediate pb00-pb04 bricks.")
+    parser.add_argument("--export_qc", action="store_true", help="Export consolidated QC PDF reports after processing.")
     return parser.parse_args(argv)
 
 
@@ -904,6 +917,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         main_config["input_dir"] = args.input_dir or os.environ["MRI_INPUT_DIR"]
     if args.output_dir or os.environ.get("MRI_OUTPUT_DIR"):
         main_config["output_dir"] = args.output_dir or os.environ["MRI_OUTPUT_DIR"]
+    if args.reports_dir or os.environ.get("MRI_REPORTS_DIR"):
+        main_config["reports_dir"] = args.reports_dir or os.environ["MRI_REPORTS_DIR"]
     if args.keep_pb00_pb04 or os.environ.get("KEEP_PB00_PB04") == "1":
         main_config["keep_pb00_pb04"] = True
     if args.clean_scratch:
@@ -947,6 +962,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     console.print(f"Processing [bold cyan]{len(subjects_to_process_ids)}[/] subject(s): {subjects_to_process_ids}")
 
+    failed_subjects: List[str] = []
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -968,15 +984,81 @@ def main(argv: Optional[List[str]] = None) -> int:
                 task_id=None,
             )
             with ProcessPoolExecutor(max_workers=args.n_procs) as executor:
-                futures = [executor.submit(worker_func, sub_id) for sub_id in subjects_to_process_ids]
+                futures = {executor.submit(worker_func, sub_id): sub_id for sub_id in subjects_to_process_ids}
                 for future in futures:
-                    future.result()
+                    sub_id = futures[future]
+                    try:
+                        ok = future.result()
+                        if not ok:
+                            failed_subjects.append(sub_id)
+                    except Exception as exc:
+                        console.log(f"[bold red]Exception occurred processing {sub_id}:[/] {exc}")
+                        failed_subjects.append(sub_id)
                     progress.update(main_task, advance=1)
         else:
             for subject_id in subjects_to_process_ids:
-                process_subject(subject_id, args, main_config, analysis_models, progress, main_task)
+                ok = process_subject(subject_id, args, main_config, analysis_models, progress, main_task)
+                if not ok:
+                    failed_subjects.append(subject_id)
+                progress.update(main_task, advance=1)
 
-    console.print(Panel("[bold green]All processing complete[/]", style="green"))
+    # Automatically export QC PDFs if enabled and step produces visual QC artifacts
+    export_qc_enabled = (
+        args.export_qc
+        or os.environ.get("EXPORT_QC_PDFS", "").lower() in ("true", "1", "yes")
+    )
+    dest_reports_dir = main_config.get("reports_dir")
+
+    qc_steps = {"preprocess_anat", "preprocess_func", "glm", "preprocess", "all"}
+    has_qc_steps = any(s in qc_steps for s in expanded_steps)
+
+    if export_qc_enabled and dest_reports_dir:
+        if has_qc_steps:
+            successful_subjects = [s for s in subjects_to_process_ids if s not in failed_subjects]
+            if successful_subjects and export_subject_results is not None:
+                console.print(
+                    Panel(
+                        f"Exporting QC PDF reports for [bold cyan]{len(successful_subjects)}[/] subject(s)\n"
+                        f"[dim]Destination: {dest_reports_dir}[/]",
+                        style="bold cyan",
+                    )
+                )
+                tmp_work_dir = (
+                    tempfile.mkdtemp(prefix="afni_export_")
+                    if (is_gcs_uri(main_config["output_dir"]) or is_gcs_uri(dest_reports_dir))
+                    else None
+                )
+                try:
+                    for sub_id in successful_subjects:
+                        sub_conf = next((s for s in main_config.get("subjects", []) if s.get("id") == sub_id), None)
+                        if not sub_conf:
+                            sub_conf = {"id": sub_id, "group": "TIM", "sessions": [{"id": 1}]}
+                        try:
+                            export_subject_results(
+                                subject_config=sub_conf,
+                                output_dir=main_config["output_dir"],
+                                dest_root=dest_reports_dir,
+                                analysis_models=analysis_models,
+                                tmp_work_dir=tmp_work_dir,
+                            )
+                        except Exception as exc:
+                            console.log(f"[yellow]Warning:[/] Failed to export QC PDFs for {sub_id}: {exc}")
+                finally:
+                    if tmp_work_dir and os.path.exists(tmp_work_dir):
+                        shutil.rmtree(tmp_work_dir, ignore_errors=True)
+        else:
+            console.log(f"[dim]Skipping QC PDF export: requested step(s) {expanded_steps} produce no visual QC artifacts.[/]")
+
+    if failed_subjects:
+        console.print(
+            Panel(
+                f"[bold red]Pipeline failed for {len(failed_subjects)} subject(s): {', '.join(failed_subjects)}[/]",
+                style="bold red",
+            )
+        )
+        return 1
+
+    console.print(Panel("[bold green]All processing complete successfully[/]", style="green"))
     return 0
 
 

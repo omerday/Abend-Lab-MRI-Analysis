@@ -64,7 +64,7 @@ SESSION_PREFIX="ses-${SESSION}"
 PREPROC_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func_preproc/${SUBJECT}_preproc.results"
 GLM_OUTPUT_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/glm/${ANALYSIS_NAME}"
 TIMING_DIR="${INPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/func"
-if [[ ! -d "${TIMING_DIR}/timings" ]] && [[ -d "${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/timings" ]]; then
+if [[ ! -d "${TIMING_DIR}/timings" || -z "$(ls -A "${TIMING_DIR}/timings" 2>/dev/null)" ]] && [[ -d "${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}/timings" ]]; then
     TIMING_DIR="${OUTPUT_DIR}/${SUBJECT}/${SESSION_PREFIX}"
 fi
 
@@ -79,7 +79,7 @@ fi
 
 # --- Load Model Configuration from TOML file using Python ---
 eval "$(python3 -c "
-import sys, shlex
+import os, sys, shlex
 try:
     import tomllib
     def load_toml(p):
@@ -98,7 +98,29 @@ try:
         sys.stderr.write(f'Model $ANALYSIS_NAME not found in $CONFIG_FILE\n')
         sys.exit(1)
 
-    stim_files = [f'$TIMING_DIR/{s}' for s in model.get('stim_files', [])]
+    alt_timing_dir = r'$OUTPUT_DIR/$SUBJECT/$SESSION_PREFIX'
+    primary_timing_dir = r'$TIMING_DIR'
+    resolved_stim_files = []
+    missing_files = []
+    for s in model.get('stim_files', []):
+        p1 = os.path.normpath(os.path.join(primary_timing_dir, s))
+        p2 = os.path.normpath(os.path.join(alt_timing_dir, s))
+        if os.path.isfile(p1):
+            resolved_stim_files.append(p1)
+        elif os.path.isfile(p2):
+            resolved_stim_files.append(p2)
+        else:
+            resolved_stim_files.append(p1)
+            missing_files.append(p1)
+
+    if missing_files:
+        sys.stderr.write(f'ERROR: Missing required stimulus timing file(s) for model \"$ANALYSIS_NAME\":\n')
+        for mf in missing_files:
+            sys.stderr.write(f'  - {mf}\n')
+        sys.stderr.write('Please ensure the \"create_timings\" step was executed first, or verify the stim_files configuration in analysis_models.toml.\n')
+        sys.exit(1)
+
+    stim_files = resolved_stim_files
     stim_labels = model.get('stim_labels', [])
     basis = model.get('basis', '')
     stim_types = model.get('stim_types', '')

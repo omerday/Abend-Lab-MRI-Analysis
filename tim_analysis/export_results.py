@@ -42,7 +42,7 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from cloud.gcs_helper import gcs_sync_down, gcs_sync_up, is_gcs_uri, join_uri
+from cloud.gcs_helper import gcs_sync_down, gcs_sync_up, is_gcs_uri, join_uri, shard_subjects_for_cloud_task
 
 
 class PDF(FPDF):
@@ -459,6 +459,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not subjects_configs:
             print(f"No matching subjects found for: {args.subject}", file=sys.stderr)
             return 1
+
+    # Automatically shard subjects if running inside a multi-task Cloud Batch / Cloud Run array
+    subjects_configs = shard_subjects_for_cloud_task(subjects_configs)
 
     tmp_work_dir = (
         tempfile.mkdtemp(prefix="afni_export_")
