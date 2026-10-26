@@ -6,20 +6,20 @@
 [sanity_check]
 description = "Sanity check with multiple regressors and contrasts."
 stim_files = [
-    "timings/low_temp_pre_pain.1D",
-    "timings/med_temp_pre_pain.1D",
-    "timings/high_temp_pre_pain.1D",
+    "timings/low_temp_pain.1D",
+    "timings/med_temp_pain.1D",
+    "timings/high_temp_pain.1D",
     "timings/green_square_onset.1D",
     "timings/yellow_square_onset.1D",
     "timings/red_square_onset.1D"
 ]
-stim_labels = ["low_pre_pain", "med_pre_pain", "high_pre_pain", "green_square", "yellow_square", "red_square"]
+stim_labels = ["low_pain", "med_pain", "high_pain", "green_square", "yellow_square", "red_square"]
 basis = "BLOCK(3,1)"
 requires_scr = false
 glt = [
-    { sym = "high_pre_pain -low_pre_pain", label = "high-low-pain" },
-    { sym = "high_pre_pain -med_pre_pain", label = "high-med-pain" },
-    { sym = "med_pre_pain -low_pre_pain", label = "med-low-pain" },
+    { sym = "high_pain -low_pain", label = "high-low-pain" },
+    { sym = "high_pain -med_pain", label = "high-med-pain" },
+    { sym = "med_pain -low_pain", label = "med-low-pain" },
     { sym = "red_square -green_square", label = "red-green-square" },
     { sym = "red_square -yellow_square", label = "red-yellow-square" },
     { sym = "yellow_square -green_square", label = "yellow-green-square" }

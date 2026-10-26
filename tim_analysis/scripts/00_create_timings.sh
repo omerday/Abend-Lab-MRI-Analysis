@@ -154,7 +154,7 @@ done
 
 # Convert to AFNI format using timing_tool.py
 cd timings
-for prefix in low_temp_pre_pain med_temp_pre_pain high_temp_pre_pain green_square_onset yellow_square_onset red_square_onset; do
+for prefix in low_temp_pre_pain med_temp_pre_pain high_temp_pre_pain low_temp_pain med_temp_pain high_temp_pain green_square_onset yellow_square_onset red_square_onset; do
     if compgen -G "${prefix}*.txt" > /dev/null; then
         timing_tool.py -fsl_timing_files ${prefix}*.txt -write_timing "${prefix}.1D"
         rm -f ${prefix}*.txt

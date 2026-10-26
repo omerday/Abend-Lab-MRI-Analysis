@@ -19,6 +19,10 @@ INPUT_DIR=""
 OUTPUT_DIR=""
 ANALYSIS_NAME=""
 CONFIG_FILE="${CONFIG_FILE:-}"
+GLT_LABELS=()
+STIM_LABELS=()
+STIM_PATHS=()
+GLT_ARGS=()
 
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -107,15 +111,20 @@ try:
     stim_labels_str = ' '.join(shlex.quote(s) for s in stim_labels)
 
     glt_items = []
+    glt_labels = []
     for i, g in enumerate(model.get('glt', []), 1):
         sym = g.get('sym', '')
         label = g.get('label', '')
         glt_items.extend(['-gltsym', f'SYM: {sym}', '-glt_label', str(i), label])
+        if label:
+            glt_labels.append(label)
 
     glt_items_str = ' '.join(shlex.quote(x) for x in glt_items)
+    glt_labels_str = ' '.join(shlex.quote(x) for x in glt_labels)
 
     print(f'STIM_PATHS=({stim_files_str})')
     print(f'STIM_LABELS=({stim_labels_str})')
+    print(f'GLT_LABELS=({glt_labels_str})')
     print(f'BASIS={shlex.quote(basis)}')
     print(f'STIM_TYPES={shlex.quote(stim_types)}')
     print(f'GLT_ARGS=({glt_items_str})')
@@ -206,6 +215,7 @@ for stim in "${STIM_LABELS[@]}"; do
         -box_focus_slices   AMASK_FOCUS_ULAY                    \
         -func_range         3                                   \
         -cbar               Reds_and_Blues_Inv                  \
+        -clusterize         "-NN 2 -clust_nvox 35"              \
         -thr_olay_p2stat    0.05                                \
         -thr_olay_pside     bisided                             \
         -olay_alpha         Yes                                 \
@@ -219,3 +229,28 @@ for stim in "${STIM_LABELS[@]}"; do
         -montx 3 -monty 3                                       \
         -label_mode 1 -label_size 4
 done
+
+if [[ ${#GLT_LABELS[@]} -gt 0 ]]; then
+    for glt in "${GLT_LABELS[@]}"; do
+        @chauffeur_afni                                             \
+            -ulay               "${PREPROC_DIR}/anat_final.${SUBJECT}_preproc+tlrc.HEAD" \
+            -ulay_range         0% 130%                             \
+            -olay               "${OLAY_DATASET}"                   \
+            -box_focus_slices   AMASK_FOCUS_ULAY                    \
+            -func_range         3                                   \
+            -cbar               Reds_and_Blues_Inv                  \
+            -clusterize         "-NN 2 -clust_nvox 35"              \
+            -thr_olay_p2stat    0.05                                \
+            -thr_olay_pside     bisided                             \
+            -olay_alpha         Yes                                 \
+            -olay_boxed         Yes                                 \
+            -set_subbricks      -1 "${glt}#0_Coef" "${glt}#0_Tstat" \
+            -set_dicom_xyz      -20 -8 -16                          \
+            -delta_slices       6 15 10                             \
+            -opacity            5                                   \
+            -prefix             "${QC_DIR}/${glt}"                  \
+            -set_xhairs         OFF                                 \
+            -montx 3 -monty 3                                       \
+            -label_mode 1 -label_size 4
+    done
+fi
