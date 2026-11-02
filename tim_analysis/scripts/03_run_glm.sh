@@ -102,20 +102,31 @@ try:
         sys.stderr.write(f'Model $ANALYSIS_NAME not found in $CONFIG_FILE\n')
         sys.exit(1)
 
-    alt_timing_dir = r'$OUTPUT_DIR/$SUBJECT/$SESSION_PREFIX'
-    primary_timing_dir = r'$TIMING_DIR'
+    search_dirs = [
+        os.path.normpath(r'$OUTPUT_DIR/$SUBJECT/$SESSION_PREFIX'),
+        os.path.normpath(r'$INPUT_DIR/$SUBJECT/$SESSION_PREFIX/func'),
+        os.path.normpath(r'$INPUT_DIR/$SUBJECT/$SESSION_PREFIX'),
+        os.path.normpath(r'$TIMING_DIR'),
+    ]
     resolved_stim_files = []
     missing_files = []
     for s in model.get('stim_files', []):
-        p1 = os.path.normpath(os.path.join(primary_timing_dir, s))
-        p2 = os.path.normpath(os.path.join(alt_timing_dir, s))
-        if os.path.isfile(p1):
-            resolved_stim_files.append(p1)
-        elif os.path.isfile(p2):
-            resolved_stim_files.append(p2)
+        found_path = None
+        for base in search_dirs:
+            candidate = os.path.normpath(os.path.join(base, s))
+            if os.path.isfile(candidate):
+                found_path = candidate
+                break
+            if s.startswith('timings/'):
+                candidate2 = os.path.normpath(os.path.join(base, s[len('timings/'):]))
+                if os.path.isfile(candidate2):
+                    found_path = candidate2
+                    break
+        if found_path:
+            resolved_stim_files.append(found_path)
         else:
-            resolved_stim_files.append(p1)
-            missing_files.append(p1)
+            default_p = os.path.normpath(os.path.join(search_dirs[0], s))
+            missing_files.append(default_p)
 
     if missing_files:
         sys.stderr.write(f'ERROR: Missing required stimulus timing file(s) for model \"$ANALYSIS_NAME\":\n')

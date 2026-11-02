@@ -172,7 +172,7 @@ def stage_in_prerequisites(
             else:
                 console.log(f"[yellow]Warning:[/] Pre-requisite func_preproc not found on permanent drive at: {perm_func}")
 
-        # Ensure timings exist locally
+        # Ensure timings exist locally (both in active_output_dir and active_input_dir)
         local_input_timings = (
             os.path.join(active_input_dir, subject_id, session_prefix, "func", "timings")
             if active_input_dir
@@ -181,16 +181,23 @@ def stage_in_prerequisites(
         local_output_timings = os.path.join(local_session_dir, "timings")
         perm_timings = join_uri(perm_session_dir, "timings")
 
-        has_input_timings = os.path.exists(local_input_timings) and bool(os.listdir(local_input_timings))
-        has_output_timings = os.path.exists(local_output_timings) and bool(os.listdir(local_output_timings))
+        if is_gcs_uri(perm_output_root):
+            console.log(f"[dim]Staging in timings from GCS for {subject_id} ({session_prefix})...[/]")
+            if not gcs_sync_down(perm_timings, local_output_timings):
+                console.log(f"[yellow]Warning:[/] Pre-requisite timings not found in GCS at: {perm_timings}")
+        elif os.path.exists(perm_timings) and perm_timings != local_output_timings:
+            console.log(f"[dim]Staging in timings from permanent output for {subject_id} ({session_prefix})...[/]")
+            os.makedirs(local_output_timings, exist_ok=True)
+            subprocess.run(["rsync", "-av", "--update", f"{perm_timings}/", f"{local_output_timings}/"], check=True)
 
-        if not has_input_timings and not has_output_timings:
-            if is_gcs_uri(perm_output_root):
-                console.log(f"[dim]Staging in timings from GCS for {subject_id} ({session_prefix})...[/]")
-                gcs_sync_down(perm_timings, local_output_timings)
-            elif os.path.exists(perm_timings):
-                os.makedirs(local_output_timings, exist_ok=True)
-                subprocess.run(["rsync", "-a", f"{perm_timings}/", f"{local_output_timings}/"], check=True)
+        # Mirror staged timings into local_input_timings so any path resolution works
+        if local_input_timings and os.path.exists(local_output_timings) and os.listdir(local_output_timings):
+            os.makedirs(local_input_timings, exist_ok=True)
+            for fname in os.listdir(local_output_timings):
+                src_f = os.path.join(local_output_timings, fname)
+                dst_f = os.path.join(local_input_timings, fname)
+                if os.path.isfile(src_f):
+                    shutil.copy2(src_f, dst_f)
 
 
 def stage_out_step(
