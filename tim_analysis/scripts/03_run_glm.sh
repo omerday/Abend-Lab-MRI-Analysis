@@ -277,7 +277,7 @@ if [[ ${#GLT_LABELS[@]} -gt 0 ]]; then
             -thr_olay_pside     bisided                             \
             -olay_alpha         Yes                                 \
             -olay_boxed         Yes                                 \
-            -set_subbricks      -1 "${glt}#0_Coef" "${glt}#0_Tstat" \
+            -set_subbricks      -1 "${glt}_GLT#0_Tstat" "${glt}_GLT#0_Tstat" \
             -set_dicom_xyz      -20 -8 -16                          \
             -delta_slices       6 15 10                             \
             -opacity            5                                   \

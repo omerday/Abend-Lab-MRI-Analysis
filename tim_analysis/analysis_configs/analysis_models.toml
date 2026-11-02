@@ -9,20 +9,14 @@ stim_files = [
     "timings/low_temp_pain.1D",
     "timings/med_temp_pain.1D",
     "timings/high_temp_pain.1D",
-    "timings/green_square_onset.1D",
-    "timings/yellow_square_onset.1D",
-    "timings/red_square_onset.1D"
 ]
-stim_labels = ["low_pain", "med_pain", "high_pain", "green_square", "yellow_square", "red_square"]
-basis = "BLOCK(3,1)"
+stim_labels = ["low_pain", "med_pain", "high_pain"]
+basis = "BLOCK(4,1)"
 requires_scr = false
 glt = [
     { sym = "high_pain -low_pain", label = "high-low-pain" },
     { sym = "high_pain -med_pain", label = "high-med-pain" },
     { sym = "med_pain -low_pain", label = "med-low-pain" },
-    { sym = "red_square -green_square", label = "red-green-square" },
-    { sym = "red_square -yellow_square", label = "red-yellow-square" },
-    { sym = "yellow_square -green_square", label = "yellow-green-square" }
 ]
 
 # --- Model: Pain by Rating ---
