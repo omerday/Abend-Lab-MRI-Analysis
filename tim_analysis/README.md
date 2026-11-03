@@ -266,7 +266,10 @@ python tim_analysis/run_analysis.py --subject sub-435 sub-473 sub-489 --step all
 # 4. Run group-level analysis for pain_by_rating model
 python tim_analysis/run_analysis.py --step group_analysis --analysis pain_by_rating --group_model pain_by_rating
 
-# 5. Execute with custom GCS or external hard drive paths
+# 5. Run group-level sanity check (3dttest++ on high pain vs low pain)
+python tim_analysis/run_analysis.py --step group_analysis --analysis sanity_check --group_model sanity_check
+
+# 6. Execute with custom GCS or external hard drive paths
 python tim_analysis/run_analysis.py \
     --input_dir "/media/user/PortableSSD/Input" \
     --output_dir "/media/user/PortableSSD/Output" \

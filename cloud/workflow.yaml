@@ -68,12 +68,33 @@ main:
           # Concurrency & Provisioning:
           # - Each subject gets its own task (1 task = 1 dedicated VM), up to max_parallelism at once.
           # - Group analysis runs as a single task aggregating across subjects.
-          - task_count: ${if(len(subjects_list) > 0 and not ("group_analysis" in steps_list), len(subjects_list), 1)}
+          - task_count: ${if(len(subjects_list) > 0 and not ("group_analysis" in steps_list or "run_group_analysis" in steps_list), len(subjects_list), 1)}
           - provisioning_model: ${if(use_spot_vms, "SPOT", "STANDARD")}
 
-          # Build human-readable job slug (either from `job_name` or auto-derived from step + subjects)
-          - first_step: ${if(len(steps_list) > 0, string(steps_list[0]), "run")}
-          - target_desc: ${if("group_analysis" in steps_list and group_model != "", group_model, if(len(subjects_list) == 1, string(subjects_list[0]), if(len(subjects_list) > 1, string(len(subjects_list)) + "subj", "allsubj")))}
+          # Default slug components
+          - first_step: "run"
+          - target_desc: "allsubj"
+
+    - resolve_first_step:
+        switch:
+          - condition: ${len(steps_list) > 0}
+            assign:
+              - first_step: ${string(steps_list[0])}
+
+    - resolve_target_desc:
+        switch:
+          - condition: ${( "group_analysis" in steps_list or "run_group_analysis" in steps_list ) and group_model != ""}
+            assign:
+              - target_desc: ${group_model}
+          - condition: ${len(subjects_list) == 1}
+            assign:
+              - target_desc: ${string(subjects_list[0])}
+          - condition: ${len(subjects_list) > 1}
+            assign:
+              - target_desc: ${string(len(subjects_list)) + "subj"}
+
+    - assemble_job_id:
+        assign:
           - raw_slug: ${if(custom_job_name != "", string(custom_job_name), first_step + "-" + target_desc)}
           - clean_slug: ${text.to_lower(raw_slug)}
           - clean_slug: ${text.replace_all(clean_slug, "_", "-")}

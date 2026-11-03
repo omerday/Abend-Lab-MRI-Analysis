@@ -55,6 +55,13 @@ sessions = [
 ]
 
 [[subjects]]
+id = "sub-501"
+group = "TIM"
+sessions = [
+  { id = 1, has_scr = true }
+]
+
+[[subjects]]
 id = "sub-502"
 group = "TIM"
 sessions = [
@@ -363,7 +370,7 @@ sessions = [
 ]
 
 # Default list of all subjects (kept for backward compatibility)
-all_subjects = ["sub-435", "sub-473", "sub-489", "sub-499", "sub-500", "sub-502", 
+all_subjects = ["sub-435", "sub-473", "sub-489", "sub-499", "sub-500", "sub-501", "sub-502", 
                 "sub-503", "sub-504", "sub-505", "sub-506", 
                 "sub-507", "sub-508", "sub-509", "sub-510", 
                 "sub-511", "sub-512", "sub-513", "sub-514", 

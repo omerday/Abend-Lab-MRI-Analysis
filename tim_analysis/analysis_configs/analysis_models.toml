@@ -19,6 +19,69 @@ glt = [
     { sym = "med_pain -low_pain", label = "med-low-pain" },
 ]
 
+[[sanity_check.group_analyses]]
+name = "sanity_check"
+type = "3dttest++"
+description = "One-sample t-test for sanity check (high pain vs low pain contrast)."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high-low-pain_GLT#0_Coef"
+setA_label = "HIGH_VS_LOW"
+
+[[sanity_check.group_analyses]]
+name = "high-low-pain"
+type = "3dttest++"
+description = "One-sample t-test for high pain minus low pain contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high-low-pain_GLT#0_Coef"
+setA_label = "HIGH_VS_LOW"
+
+[[sanity_check.group_analyses]]
+name = "high-med-pain"
+type = "3dttest++"
+description = "One-sample t-test for high pain minus med pain contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high-med-pain_GLT#0_Coef"
+setA_label = "HIGH_VS_MED"
+
+[[sanity_check.group_analyses]]
+name = "med-low-pain"
+type = "3dttest++"
+description = "One-sample t-test for med pain minus low pain contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "med-low-pain_GLT#0_Coef"
+setA_label = "MED_VS_LOW"
+
+[[sanity_check.group_analyses]]
+name = "high_pain"
+type = "3dttest++"
+description = "One-sample t-test for high pain condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high_pain#0_Coef"
+setA_label = "HIGH_PAIN"
+
+[[sanity_check.group_analyses]]
+name = "med_pain"
+type = "3dttest++"
+description = "One-sample t-test for medium pain condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "med_pain#0_Coef"
+setA_label = "MED_PAIN"
+
+[[sanity_check.group_analyses]]
+name = "low_pain"
+type = "3dttest++"
+description = "One-sample t-test for low pain condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "low_pain#0_Coef"
+setA_label = "LOW_PAIN"
+
 # --- Model: Pain by Rating ---
 # Pain period amplitude modulated by subjective rating.
 [pain_by_rating]

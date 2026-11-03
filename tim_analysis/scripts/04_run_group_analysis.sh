@@ -174,11 +174,28 @@ elif [[ "${ANALYSIS_TYPE}" == "3dttest++" ]]; then
 
     read -r -a SET_A_FILES_ARR <<< "${SET_A_FILES}"
 
-    # TIM group analysis includes -clustsim on 3dttest++
-    3dttest++ -prefix "${OUTPUT_PREFIX}" \
-        -mask "${MASK}" \
-        -setA "${SET_A_LABEL}" "${SET_A_FILES_ARR[@]}" \
-        -clustsim
+    # Extract directory and basename to prevent AFNI's fatal error:
+    # "Cannot use -Clustsim when -prefix has an absolute path"
+    OUTPUT_DIR="$(dirname "${OUTPUT_PREFIX}")"
+    OUTPUT_BASE="$(basename "${OUTPUT_PREFIX}")"
+
+    if [[ -d "${OUTPUT_DIR}" ]]; then
+        cd "${OUTPUT_DIR}"
+    fi
+
+    if [[ -f "${OUTPUT_BASE}+tlrc.HEAD" ]]; then
+        log_warn "Output dataset ${OUTPUT_BASE}+tlrc.HEAD already exists. Skipping 3dttest++ execution."
+    else
+        # TIM group analysis includes -clustsim on 3dttest++
+        # -prefix must be a relative dataset name (no leading / or ../) when -clustsim is used
+        3dttest++ -prefix "${OUTPUT_BASE}" \
+            -mask "${MASK}" \
+            -setA "${SET_A_LABEL}" "${SET_A_FILES_ARR[@]}" \
+            -clustsim
+    fi
+
+    # Update OUTPUT_PREFIX to local basename since we cd'd to OUTPUT_DIR
+    OUTPUT_PREFIX="${OUTPUT_BASE}"
 
 else
     log_error "Unknown analysis type '${ANALYSIS_TYPE}'"

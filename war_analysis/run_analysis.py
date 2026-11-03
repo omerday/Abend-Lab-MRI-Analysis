@@ -916,7 +916,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.clean_scratch:
         main_config["cleanup_scratch"] = True
 
-    if "group_analysis" in args.step:
+    if "group_analysis" in args.step or "run_group_analysis" in args.step:
         success = run_group_analysis(args, main_config, analysis_models)
         return 0 if success else 1
 

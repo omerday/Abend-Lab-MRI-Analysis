@@ -612,42 +612,23 @@ def _stage_group_subject_files(
     return local_out_root
 
 
-def run_group_analysis(
+def _run_single_group_analysis(
     args: argparse.Namespace,
     config: Dict[str, Any],
-    analysis_models: Dict[str, Any],
+    analysis_name: str,
+    f_level_model: Dict[str, Any],
+    group_model_config: Dict[str, Any],
 ) -> bool:
-    """Runs a specified group-level analysis with optional scratch and GCS acceleration."""
-    console.print(Panel(f"Group Analysis: [bold cyan]{args.group_model}[/]", style="bold blue"))
-
-    if not args.analysis or len(args.analysis) > 1:
-        console.log("[red]Error:[/] Please specify exactly one first-level analysis model using --analysis.")
-        return False
-    analysis_name = args.analysis[0]
-
-    if not args.group_model:
-        console.log("[red]Error:[/] Please specify a group analysis model using --group_model.")
-        return False
-
-    f_level_model = analysis_models.get(analysis_name)
-    if not f_level_model:
-        console.log(f"[red]Error:[/] First-level analysis '{analysis_name}' not found.")
-        return False
-
-    group_model_config = next(
-        (g for g in f_level_model.get("group_analyses", []) if g["name"] == args.group_model),
-        None,
-    )
-    if not group_model_config:
-        console.log(f"[red]Error:[/] Group analysis model '{args.group_model}' not found under '{analysis_name}'.")
-        return False
+    """Runs a single group-level analysis configuration."""
+    group_model_name = group_model_config["name"]
+    console.print(Panel(f"Group Analysis: [bold cyan]{group_model_name}[/]", style="bold blue"))
 
     use_scratch = not getattr(args, "no_scratch", False)
     scratch_root = getattr(args, "scratch_dir", None) or config.get("scratch_dir", "/tmp/afni_scratch")
 
-    perm_output_dir = join_uri(config["output_dir"], "group_analysis", analysis_name, args.group_model)
+    perm_output_dir = join_uri(config["output_dir"], "group_analysis", analysis_name, group_model_name)
     if is_gcs_uri(config["output_dir"]) or (use_scratch and scratch_root):
-        active_output_dir = os.path.join(scratch_root, "group_analysis", analysis_name, args.group_model)
+        active_output_dir = os.path.join(scratch_root, "group_analysis", analysis_name, group_model_name)
     else:
         active_output_dir = perm_output_dir
 
@@ -690,6 +671,12 @@ def run_group_analysis(
                 subjects_to_process = [s for s in all_subjects_info if s.get("group") in group_model_groups]
             else:
                 subjects_to_process = all_subjects_info
+
+        # Allow CLI --subject filtering if explicitly specified
+        if args.subject and args.subject != ["all"] and args.subject != "all":
+            allowed_subjs = set(args.subject if isinstance(args.subject, list) else [args.subject])
+            subjects_to_process = [s for s in subjects_to_process if s["id"] in allowed_subjs]
+            console.log(f"Filtered to {len(subjects_to_process)} subject(s) specified via CLI: {sorted(allowed_subjs)}")
 
         if not subjects_to_process:
             console.log("[red]Error:[/] No subjects to process after filtering.")
@@ -734,7 +721,7 @@ def run_group_analysis(
             "--type",
             analysis_type,
             "--output_prefix",
-            os.path.join(active_output_dir, f"result_{args.group_model}"),
+            os.path.join(active_output_dir, f"result_{group_model_name}"),
             "--mask",
             f"{group_mask_path}+tlrc",
         ]
@@ -829,7 +816,7 @@ def run_group_analysis(
 
         log_dir = os.path.join(base_dir, "logs")
         os.makedirs(log_dir, exist_ok=True)
-        log_filename = f"group_analysis_{analysis_name}_{args.group_model}.log"
+        log_filename = f"group_analysis_{analysis_name}_{group_model_name}.log"
         log_file_path = os.path.join(log_dir, log_filename)
         console.log(f"[dim]Executing group analysis. See log: {log_file_path}[/]")
 
@@ -861,6 +848,51 @@ def run_group_analysis(
             console.log("[dim]Cleaning local group analysis scratch...[/]")
             shutil.rmtree(active_output_dir, ignore_errors=True)
             shutil.rmtree(os.path.join(scratch_root, "group_inputs"), ignore_errors=True)
+
+
+def run_group_analysis(
+    args: argparse.Namespace,
+    config: Dict[str, Any],
+    analysis_models: Dict[str, Any],
+) -> bool:
+    """Runs a specified group-level analysis with optional scratch and GCS acceleration."""
+    if not args.analysis or len(args.analysis) > 1:
+        console.log("[red]Error:[/] Please specify exactly one first-level analysis model using --analysis.")
+        return False
+    analysis_name = args.analysis[0]
+
+    if not args.group_model:
+        console.log("[red]Error:[/] Please specify a group analysis model using --group_model.")
+        return False
+
+    f_level_model = analysis_models.get(analysis_name)
+    if not f_level_model:
+        console.log(f"[red]Error:[/] First-level analysis '{analysis_name}' not found.")
+        return False
+
+    group_analyses = f_level_model.get("group_analyses", [])
+    if not group_analyses:
+        console.log(f"[red]Error:[/] No group analyses defined under '{analysis_name}'.")
+        return False
+
+    if args.group_model == "all" and not any(g["name"] == "all" for g in group_analyses):
+        console.print(Panel(f"Group Analysis: Running all {len(group_analyses)} model(s) for [bold cyan]{analysis_name}[/]", style="bold blue"))
+        overall_success = True
+        for g_cfg in group_analyses:
+            success = _run_single_group_analysis(args, config, analysis_name, f_level_model, g_cfg)
+            if not success:
+                overall_success = False
+        return overall_success
+
+    group_model_config = next(
+        (g for g in group_analyses if g["name"] == args.group_model),
+        None,
+    )
+    if not group_model_config:
+        console.log(f"[red]Error:[/] Group analysis model '{args.group_model}' not found under '{analysis_name}'.")
+        return False
+
+    return _run_single_group_analysis(args, config, analysis_name, f_level_model, group_model_config)
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
@@ -931,7 +963,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.clean_scratch:
         main_config["cleanup_scratch"] = True
 
-    if "group_analysis" in args.step:
+    if "group_analysis" in args.step or "run_group_analysis" in args.step:
         success = run_group_analysis(args, main_config, analysis_models)
         return 0 if success else 1
 
