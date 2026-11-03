@@ -216,7 +216,7 @@ Once `run-mri-pipeline` is deployed, researchers can launch full parallel analys
 | `steps` | `list[str]` | `["preprocess", "glm"]` | Pipeline steps to execute (`create_timings`, `preprocess_anat`, `preprocess_func`, `glm`, `preprocess`, `all`, `group_analysis`). |
 | `subjects` | `list[str]` | `[]` *(all)* | Array of subject IDs to process. |
 | `analyses` | `list[str]` | `[]` | First-level GLM models (e.g. `["pain_by_rating"]` or `["all"]`). |
-| `group_model` | `string` | `""` | Name of group model (required for `group_analysis`). |
+| `group_model` | `string` | `"all"` | Group model to run. Use `"all"` (default) to run all models defined under `analyses`, or a specific name (e.g. `"high-low-pain"`). |
 | `use_spot_vms` | `bool` | `true` | `true` uses Spot VMs (~70% cost savings); `false` uses Standard On-Demand VMs. |
 | `export_qc_pdfs` | `bool` | `true` | Automatically compiles and uploads QC PDFs to `reports/`. |
 | `parallelism` | `int` | `10` | Maximum number of subject VMs executing concurrently. |
@@ -257,7 +257,23 @@ Once `run-mri-pipeline` is deployed, researchers can launch full parallel analys
 }
 ```
 
-#### Example 3: Group-Level Analysis (`3dLMEr` or `3dttest++`)
+#### Example 3: Running All Group Analyses Under `sanity_check` (`3dttest++ -clustsim`)
+
+Runs all 7 group models (`sanity_check`, `high-low-pain`, `high-med-pain`, `med-low-pain`, `high_pain`, `med_pain`, `low_pain`) in sequence, generating `@chauffeur_afni` axial/coronal/sagittal montages, cluster simulation tables, and consolidated PDF reports for each:
+
+```json
+{
+  "job_name": "tim-group-sanity-all",
+  "pipeline": "tim",
+  "steps": ["group_analysis"],
+  "analyses": ["sanity_check"],
+  "group_model": "all",
+  "use_spot_vms": true,
+  "export_qc_pdfs": true
+}
+```
+
+#### Example 4: Single Specific Group-Level Analysis Model
 
 ```json
 {

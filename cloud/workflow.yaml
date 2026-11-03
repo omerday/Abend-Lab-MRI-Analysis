@@ -16,8 +16,12 @@
 #   - subjects       (list)   : Subject IDs to process, e.g. ["sub-435", "sub-473"].
 #                               Each subject runs on its own isolated VM in parallel.
 #                               If omitted/empty, processes all subjects in main_config.toml.
-#   - analyses       (list)   : GLM model name(s), e.g. ["all"] or ["model1_all_runs_p1"].
+#   - analyses       (list)   : First-level model name(s), e.g. ["sanity_check"] or ["all"].
+#                               For group_analysis, specify the single parent analysis model.
 #   - group_model    (string) : Group model name when steps == ["group_analysis"].
+#                               Pass "all" (or omit) to run all group models defined
+#                               under the analysis (e.g. all sanity_check contrasts),
+#                               or pass a specific model name (e.g., "high-low-pain").
 #   - session        (int/str): Optional session number (e.g., 1).
 #   - use_spot_vms   (bool)   : true (default, ~70% cheaper Spot VMs) or false (Standard On-Demand VMs).
 #   - export_qc_pdfs (bool)   : true (default) to automatically generate & upload QC PDF reports.

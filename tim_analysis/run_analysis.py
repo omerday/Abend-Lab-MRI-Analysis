@@ -830,6 +830,20 @@ def _run_single_group_analysis(
 
         if process.returncode == 0:
             console.log(f"[bold green]SUCCESS:[/] Group analysis complete in: {active_output_dir}")
+
+            # Generate group QC PDF report from @chauffeur_afni montages
+            try:
+                from export_results import export_group_results
+                dest_reports = os.environ.get("MRI_REPORTS_DIR") or join_uri(config["output_dir"], "reports")
+                export_group_results(
+                    group_output_dir=active_output_dir,
+                    dest_root=dest_reports,
+                    analysis_name=analysis_name,
+                    group_model_config=group_model_config,
+                )
+            except Exception as qc_err:
+                console.log(f"[dim]Group QC PDF generation notice: {qc_err}[/]")
+
             if is_gcs_uri(perm_output_dir):
                 console.log(f"[cyan]Uploading group analysis results to GCS ({perm_output_dir})...[/]")
                 gcs_sync_up(active_output_dir, perm_output_dir)

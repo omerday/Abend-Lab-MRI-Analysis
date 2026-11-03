@@ -118,11 +118,7 @@ if [ "$#" -gt 0 ]; then
             exec python3 "$SCRIPT" "$@"
             ;;
         bash|sh|python|python3)
-            # For interactive/subshell, stop Xvfb before exec if we spawned it
-            if [ -n "$XVFB_PID" ] && kill -0 "$XVFB_PID" >/dev/null 2>&1; then
-                kill "$XVFB_PID" >/dev/null 2>&1 || true
-                XVFB_PID=""
-            fi
+            # Execute subshell or python interpreter directly with active DISPLAY
             exec "$@"
             ;;
     esac

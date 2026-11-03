@@ -76,7 +76,8 @@ fi
 MNI_TEMPLATE=""
 for candidate in \
     "/opt/afni_templates/MNI152_2009_template.nii.gz" \
-    "${SCRIPT_DIR}/../MNI152_2009_template.nii.gz"; do
+    "${SCRIPT_DIR}/../MNI152_2009_template.nii.gz" \
+    "${SCRIPT_DIR}/../../tim_analysis/MNI152_2009_template.nii.gz"; do
     if [[ -f "${candidate}" ]]; then
         MNI_TEMPLATE="${candidate}"
         break
@@ -84,13 +85,22 @@ for candidate in \
 done
 
 if [[ -z "${MNI_TEMPLATE}" ]]; then
-    MNI_TEMPLATE=$(find .. -name "MNI152_2009_template.nii.gz" 2>/dev/null | head -n 1)
+    MNI_TEMPLATE=$(find "${SCRIPT_DIR}/../.." -name "MNI152_2009_template.nii.gz" 2>/dev/null | head -n 1)
 fi
 
 if [[ -z "${MNI_TEMPLATE}" ]] || [[ ! -f "${MNI_TEMPLATE}" ]]; then
     log_error "MNI152_2009_template.nii.gz not found."
     exit 1
 fi
+
+# Ensure working directory is the output directory and use relative output basename.
+# This prevents AFNI fatal errors when relative paths are required (e.g. 3dttest++ -clustsim)
+OUTPUT_DIR="$(dirname "${OUTPUT_PREFIX}")"
+OUTPUT_BASE="$(basename "${OUTPUT_PREFIX}")"
+
+mkdir -p "${OUTPUT_DIR}"
+cd "${OUTPUT_DIR}"
+OUTPUT_PREFIX="${OUTPUT_BASE}"
 
 print_header "Starting Group Analysis: ${OUTPUT_PREFIX}"
 log_info "Analysis Type: ${ANALYSIS_TYPE}"
@@ -147,7 +157,6 @@ if [[ "${ANALYSIS_TYPE}" == "3dLMEr" ]]; then
 
             # Check for generic output filename
             if [[ ! -f "${CMD_FILE}" ]]; then
-                OUTPUT_DIR="$(dirname "${OUTPUT_PREFIX}")"
                 if [[ -f "${OUTPUT_DIR}/3dClustSim.cmd" ]]; then
                     log_warn "Found generic 3dClustSim.cmd, renaming to match prefix..."
                     mv "${OUTPUT_DIR}/3dClustSim.cmd" "${CMD_FILE}"
@@ -174,28 +183,16 @@ elif [[ "${ANALYSIS_TYPE}" == "3dttest++" ]]; then
 
     read -r -a SET_A_FILES_ARR <<< "${SET_A_FILES}"
 
-    # Extract directory and basename to prevent AFNI's fatal error:
-    # "Cannot use -Clustsim when -prefix has an absolute path"
-    OUTPUT_DIR="$(dirname "${OUTPUT_PREFIX}")"
-    OUTPUT_BASE="$(basename "${OUTPUT_PREFIX}")"
-
-    if [[ -d "${OUTPUT_DIR}" ]]; then
-        cd "${OUTPUT_DIR}"
-    fi
-
-    if [[ -f "${OUTPUT_BASE}+tlrc.HEAD" ]]; then
-        log_warn "Output dataset ${OUTPUT_BASE}+tlrc.HEAD already exists. Skipping 3dttest++ execution."
+    if [[ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]]; then
+        log_warn "Output dataset ${OUTPUT_PREFIX}+tlrc.HEAD already exists. Skipping 3dttest++ execution."
     else
         # TIM group analysis includes -clustsim on 3dttest++
         # -prefix must be a relative dataset name (no leading / or ../) when -clustsim is used
-        3dttest++ -prefix "${OUTPUT_BASE}" \
+        3dttest++ -prefix "${OUTPUT_PREFIX}" \
             -mask "${MASK}" \
             -setA "${SET_A_LABEL}" "${SET_A_FILES_ARR[@]}" \
             -clustsim
     fi
-
-    # Update OUTPUT_PREFIX to local basename since we cd'd to OUTPUT_DIR
-    OUTPUT_PREFIX="${OUTPUT_BASE}"
 
 else
     log_error "Unknown analysis type '${ANALYSIS_TYPE}'"
@@ -203,6 +200,26 @@ else
 fi
 
 log_success "Group Analysis Complete. Output: ${OUTPUT_PREFIX}+tlrc"
+
+# Ensure headless Xvfb display is active for @chauffeur_afni
+XVFB_LOCAL_PID=""
+cleanup_xvfb() {
+    if [[ -n "${XVFB_LOCAL_PID}" ]] && kill -0 "${XVFB_LOCAL_PID}" >/dev/null 2>&1; then
+        kill "${XVFB_LOCAL_PID}" >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup_xvfb EXIT INT TERM
+
+if command -v Xvfb >/dev/null 2>&1; then
+    if [ -z "${DISPLAY:-}" ] || ! command -v xset >/dev/null 2>&1 || ! xset q >/dev/null 2>&1; then
+        XVFB_DISPLAY=":99"
+        log_info "Starting headless virtual framebuffer Xvfb on ${XVFB_DISPLAY} for @chauffeur_afni..."
+        Xvfb "${XVFB_DISPLAY}" -screen 0 1600x1200x24 -nolisten tcp >/dev/null 2>&1 &
+        XVFB_LOCAL_PID=$!
+        export DISPLAY="${XVFB_DISPLAY}"
+        sleep 1
+    fi
+fi
 
 print_subheader "Generating report images with @chauffeur_afni"
 CHAUFFEUR_DIR="${OUTPUT_PREFIX}_images"
@@ -237,6 +254,16 @@ if [[ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]]; then
             # Common in 3dttest++ (e.g., SetA_Tstat -> SetA_mean)
             STAT_LABEL="${label}"
             INTEN_LABEL="${label%_Tstat}_mean"
+        elif [[ "${label}" == *"_Zscore" ]]; then
+            STAT_LABEL="${label}"
+            INTEN_LABEL="${label%_Zscore}_mean"
+        elif [[ "${label}" == *"_Zscr" ]]; then
+            # From 3dttest++ -clustsim or -toz (e.g., SetA_Zscr -> SetA_mean)
+            STAT_LABEL="${label}"
+            INTEN_LABEL="${label%_Zscr}_mean"
+        elif [[ "${label}" == *"_Fstat" ]]; then
+            STAT_LABEL="${label}"
+            INTEN_LABEL="${label%_Fstat}_mean"
         fi
 
         if [[ -n "${STAT_LABEL}" ]]; then
@@ -250,16 +277,18 @@ if [[ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]]; then
                 fi
             done
 
+            FUNC_RANGE_ARG=()
             if [[ "${HAS_INTEN}" -eq 1 ]]; then
                 SUBBRICKS_ARG=(-set_subbricks -1 "${INTEN_LABEL}" "${STAT_LABEL}")
+                FUNC_RANGE_ARG=(-func_range 3)
             else
                 # Fallback: Use stat for both
                 SUBBRICKS_ARG=(-set_subbricks -1 "${STAT_LABEL}" "${STAT_LABEL}")
             fi
 
-            SAFE_NAME=$(echo "${INTEN_LABEL}" | tr ' :' '__')
+            SAFE_NAME=$(echo "${INTEN_LABEL}" | tr ' :/#+[]' '______')
             if [[ -z "${SAFE_NAME}" ]]; then
-                SAFE_NAME=$(echo "${STAT_LABEL}" | tr ' :' '__')
+                SAFE_NAME=$(echo "${STAT_LABEL}" | tr ' :/#+[]' '______')
             fi
 
             log_info "Generating image for: ${SAFE_NAME} (${STAT_LABEL})"
@@ -270,15 +299,16 @@ if [[ -f "${OUTPUT_PREFIX}+tlrc.HEAD" ]]; then
                 -ulay_range         0% 130% \
                 -olay               "${OUTPUT_PREFIX}+tlrc" \
                 -box_focus_slices   AMASK_FOCUS_ULAY \
-                -func_range         3 \
+                ${FUNC_RANGE_ARG[@]+"${FUNC_RANGE_ARG[@]}"} \
                 -cbar               Reds_and_Blues_Inv \
-                -thr_olay_p2stat    0.05 \
+                -thr_olay_p2stat    0.005 \
                 -thr_olay_pside     bisided \
                 -olay_alpha         Yes \
                 -olay_boxed         Yes \
                 "${SUBBRICKS_ARG[@]}" \
                 -opacity            5 \
                 -zerocolor          white \
+                -label_color        black \
                 -set_dicom_xyz      -20 -8 -16 \
                 -delta_slices       6 15 10 \
                 -clusterize         "-NN 2 -clust_nvox 35" \

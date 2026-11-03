@@ -301,6 +301,181 @@ def create_glm_results_pdf(
     return True
 
 
+def create_group_results_pdf(
+    image_folder: str,
+    pdf_path: str,
+    title: str,
+    analysis_name: str,
+    group_model_config: Dict[str, Any],
+) -> bool:
+    """Generate consolidated Group Analysis statistical activation results PDF with @chauffeur_afni montages.
+
+    Args:
+        image_folder: Directory containing generated @chauffeur_afni slices.
+        pdf_path: Output PDF destination path.
+        title: Document title.
+        analysis_name: First-level analysis model name.
+        group_model_config: Model dictionary containing group analysis metadata.
+
+    Returns:
+        True if PDF was created successfully, False otherwise.
+    """
+    if Image is None:
+        print(f"Skipping group results PDF for {pdf_path}: PIL is not installed.", file=sys.stderr)
+        return False
+
+    images = sorted(glob.glob(os.path.join(image_folder, "*.png"))) or sorted(glob.glob(os.path.join(image_folder, "*.jpg")))
+    if not images:
+        print(f"No images found in {image_folder}")
+        return False
+
+    print(f"Creating {pdf_path}...")
+    group_model_name = group_model_config.get("name", "Group Analysis")
+    pdf = PDF(
+        title=title,
+        subject_info=f"First-Level: {analysis_name} | Group Model: {group_model_name} | Type: {group_model_config.get('type', 'N/A')}",
+    )
+    pdf.add_page()
+
+    pdf.section_title("Group Analysis Summary")
+    summary_lines = [
+        f"Group Model: {group_model_name}",
+        f"Analysis Type: {group_model_config.get('type', 'N/A')}",
+        f"Description: {group_model_config.get('description', 'N/A')}",
+        f"Target Contrast: {group_model_config.get('contrast', 'N/A')}",
+        f"SetA Label: {group_model_config.get('setA_label', 'N/A')}",
+        f"Groups: {', '.join(group_model_config.get('groups', ['ALL']))}",
+        f"Sessions: {group_model_config.get('sessions', [1])}",
+    ]
+    if group_model_config.get("model"):
+        summary_lines.append(f"Model Formula: {group_model_config.get('model')}")
+    pdf.section_body("\n".join(summary_lines))
+
+    # Group images by sub-brick / contrast prefix (stripping .axi.png, .cor.png, .sag.png)
+    image_groups: Dict[str, List[str]] = {}
+    for image_path in images:
+        filename = os.path.basename(image_path)
+        prefix = re.sub(r"\.(axi|cor|sag)\.(png|jpg|jpeg)$", "", filename)
+        if prefix not in image_groups:
+            image_groups[prefix] = []
+        image_groups[prefix].append(image_path)
+
+    for prefix, group_images in image_groups.items():
+        pdf.add_page()
+        pdf.section_title(f"Statistical Activation: {prefix}")
+        pdf.section_body(
+            "Rendered via AFNI @chauffeur_afni on MNI152_2009 template (dual-sided p < 0.005, NN=2, nvox=35)."
+        )
+
+        if len(group_images) == 3:
+            sort_order = {"sag": 0, "cor": 1, "axi": 2}
+            group_images.sort(
+                key=lambda p: next((sort_order[k] for k in sort_order if f".{k}." in p), 99)
+            )
+
+            page_width = 190.0
+            total_aspect_ratio = 0.0
+            img_dims = []
+            for image_path in group_images:
+                with Image.open(image_path) as img:
+                    w, h = img.size
+                    img_dims.append((w, h))
+                    total_aspect_ratio += w / h
+
+            common_height = page_width / total_aspect_ratio if total_aspect_ratio > 0 else 60.0
+
+            x = 10.0
+            y = pdf.get_y()
+            for i, image_path in enumerate(group_images):
+                w, h = img_dims[i]
+                new_width = common_height * w / h
+                try:
+                    pdf.image(image_path, x=x, y=y, w=new_width, h=common_height)
+                    x += new_width
+                except Exception as exc:
+                    print(f"  -> Failed to process image {image_path}. Error: {exc}", file=sys.stderr)
+            pdf.ln(common_height + 5)
+        else:
+            y = pdf.get_y()
+            for image_path in group_images:
+                try:
+                    with Image.open(image_path) as img:
+                        w, h = img.size
+                        pdf_width = 190.0
+                        pdf_height = pdf_width * h / w
+                        if y + pdf_height > 270:
+                            pdf.add_page()
+                            y = pdf.get_y()
+                        pdf.image(image_path, x=10, y=y, w=pdf_width)
+                        y += pdf_height + 5
+                except Exception as exc:
+                    print(f"  -> Failed to process image {image_path}. Error: {exc}", file=sys.stderr)
+
+        # Include 3dClusterize table if available
+        cluster_file = os.path.join(image_folder, f"clusters_{prefix}.txt")
+        if os.path.exists(cluster_file):
+            try:
+                with open(cluster_file, "r") as cf:
+                    clust_content = cf.read().strip()
+                if clust_content:
+                    pdf.ln(5)
+                    pdf.section_title(f"Cluster Table: {prefix}")
+                    pdf.set_font("Courier", "", 7)
+                    pdf.multi_cell(0, 3.5, clust_content)
+                    pdf.set_font("Arial", "", 10)
+            except Exception:
+                pass
+
+    out_dir = os.path.dirname(pdf_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    pdf.output(pdf_path)
+    print("  -> Success.")
+    return True
+
+
+def export_group_results(
+    group_output_dir: str,
+    dest_root: str,
+    analysis_name: str,
+    group_model_config: Dict[str, Any],
+) -> Optional[str]:
+    """Export group analysis @chauffeur_afni montages to a consolidated PDF report."""
+    group_model_name = group_model_config.get("name", "group")
+    images_dir = os.path.join(group_output_dir, f"result_{group_model_name}_images")
+    if not os.path.isdir(images_dir):
+        # Fallback to any *_images dir inside group_output_dir
+        candidates = [d for d in glob.glob(os.path.join(group_output_dir, "*_images")) if os.path.isdir(d)]
+        if candidates:
+            images_dir = candidates[0]
+        else:
+            print(f"No chauffeur images directory found in {group_output_dir}", file=sys.stderr)
+            return None
+
+    pdf_filename = f"group_report_{analysis_name}_{group_model_name}.pdf"
+    local_pdf = os.path.join(group_output_dir, pdf_filename)
+    success = create_group_results_pdf(
+        image_folder=images_dir,
+        pdf_path=local_pdf,
+        title=f"Group Analysis: {group_model_name}",
+        analysis_name=analysis_name,
+        group_model_config=group_model_config,
+    )
+
+    if success and dest_root:
+        if is_gcs_uri(dest_root):
+            gcs_dest_uri = join_uri(dest_root, "group_analysis", analysis_name, pdf_filename)
+            print(f"Uploading group report PDF to {gcs_dest_uri}...")
+            gcs_upload_file(local_pdf, gcs_dest_uri)
+        else:
+            dest_folder = os.path.join(dest_root, "group_analysis", analysis_name)
+            os.makedirs(dest_folder, exist_ok=True)
+            shutil.copy2(local_pdf, os.path.join(dest_folder, pdf_filename))
+
+    return local_pdf if success else None
+
+
 def export_subject_results(
     subject_config: Dict[str, Any],
     output_dir: str,
@@ -421,6 +596,16 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         nargs="+",
         help="Specific subject IDs to export. If omitted, all subjects are exported.",
     )
+    parser.add_argument(
+        "--group",
+        action="store_true",
+        help="Export group-level analysis results instead of individual subjects.",
+    )
+    parser.add_argument(
+        "--analysis",
+        nargs="+",
+        help="Specific first-level analysis model(s) for group export.",
+    )
     return parser.parse_args(argv)
 
 
@@ -444,6 +629,26 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
     dest_root = os.environ.get("MRI_REPORTS_DIR") or args.dropbox_dir
+
+    if args.group:
+        print("--- Exporting Group Analysis QC Reports ---")
+        models_to_check = args.analysis if args.analysis else list(analysis_models.keys())
+        for model_name in models_to_check:
+            m_conf = analysis_models.get(model_name, {})
+            group_analyses = m_conf.get("group_analyses", [])
+            for grp_conf in group_analyses:
+                grp_name = grp_conf["name"]
+                group_out_dir = join_uri(output_dir, "group_analysis", model_name, grp_name)
+                print(f"  - Exporting group model: {model_name} / {grp_name} from {group_out_dir}")
+                export_group_results(
+                    group_output_dir=group_out_dir,
+                    dest_root=dest_root,
+                    analysis_name=model_name,
+                    group_model_config=grp_conf,
+                )
+        print("--- Group processing complete ---")
+        return 0
+
     subjects_list = main_config.get("subjects", [])
 
     if not subjects_list:

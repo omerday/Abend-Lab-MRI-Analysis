@@ -263,11 +263,12 @@ python tim_analysis/run_analysis.py --step glm --analysis pain_by_rating --n_pro
 # 3. Run complete first-level pipeline for multiple subjects in parallel
 python tim_analysis/run_analysis.py --subject sub-435 sub-473 sub-489 --step all --n_procs 3
 
-# 4. Run group-level analysis for pain_by_rating model
-python tim_analysis/run_analysis.py --step group_analysis --analysis pain_by_rating --group_model pain_by_rating
+# 4. Run ALL group-level models under sanity_check (7 models in sequence)
+python tim_analysis/run_analysis.py --step group_analysis --analysis sanity_check --group_model all
 
-# 5. Run group-level sanity check (3dttest++ on high pain vs low pain)
+# 5. Run single specific group-level model (e.g. sanity_check or high-low-pain)
 python tim_analysis/run_analysis.py --step group_analysis --analysis sanity_check --group_model sanity_check
+python tim_analysis/run_analysis.py --step group_analysis --analysis sanity_check --group_model high-low-pain
 
 # 6. Execute with custom GCS or external hard drive paths
 python tim_analysis/run_analysis.py \
@@ -374,17 +375,19 @@ python tim_analysis/mri_file_preprocess.py \
         └── pain_by_rating/
             ├── result_pain_by_rating+tlrc.HEAD # 3dttest++ or 3dLMEr group statistics
             ├── group_mask+tlrc.HEAD          # Overlap mask across included subjects
-            └── result_pain_by_rating_images/ # Publication montage figures
+            ├── result_pain_by_rating_images/ # Axial, Coronal, and Sagittal @chauffeur_afni montages & cluster tables
+            └── group_report_pain_by_rating.pdf # Consolidated Group QC & activation PDF report
 ```
 
 ---
 
 ## Quality Control & Verification
 
-Every subject execution produces comprehensive visual inspection artifacts:
+Every subject and group execution produces comprehensive visual inspection artifacts:
 1. **APQC Pythonic Review**: Located in `func_preproc/sub-XXX_preproc.results/QC_sub-XXX/index.html`. Inspects slice timing, motion spikes, registration overlays, and tSNR maps.
-2. **Chauffeur QC Axial Montages**: Rendered automatically by `03_run_glm.sh` using `@chauffeur_afni`. Produces 3x3 axial montage slices with clusterization (`-NN 2 -clust_nvox 35`) and dual-sided thresholding ($p < 0.05$).
-3. **Automated Unit Testing**: The entire command builder and timing generation logic is verified via:
+2. **First-Level Chauffeur QC Montages**: Rendered automatically by `03_run_glm.sh` using `@chauffeur_afni`. Produces 3x3 axial, coronal, and sagittal montages with clusterization (`-NN 2 -clust_nvox 35`) and dual-sided thresholding ($p < 0.05$).
+3. **Group-Level Chauffeur QC & Reporting**: Rendered automatically by `04_run_group_analysis.sh` using `@chauffeur_afni` on `MNI152_2009_template`. Generates multi-slice 3x3 montages across axial, coronal, and sagittal planes, cluster simulation tables via `3dClusterize`, and a publication-quality consolidated PDF report (`group_report_<analysis>_<model>.pdf`).
+4. **Automated Unit Testing**: The entire command builder and timing generation logic is verified via:
    ```bash
    python3 -m unittest discover -s tests -v
    ```
