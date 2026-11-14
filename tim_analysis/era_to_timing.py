@@ -75,26 +75,32 @@ def get_anticipation_scr_timing_file(
         records_list: List[dict] = []
 
         for event in VALID_ANTICIPATION_EVENTS:
-            timings = timing_df[timing_df["condition"] == event]["onset"]
+            sub_timing = timing_df[timing_df["condition"] == event]
             global_means = block_df[block_df["Event.Name"] == event]["Global.Mean"]
             cda_tonic = block_df[block_df["Event.Name"] == event]["CDA.Tonic"]
 
             diff = global_means - cda_tonic
-            amp = float(np.round(np.average(diff), 2)) if len(diff) > 0 else 0.0
+            sqrt_diff = np.sqrt(np.maximum(0, diff))
+            amp = float(np.round(np.mean(sqrt_diff), 2)) if len(diff) > 0 else 0.0
             if np.isnan(amp):
                 amp = 0.0
 
-            for time in timings:
+            for _, row in sub_timing.iterrows():
                 records_list.append({
                     "Event": event,
-                    "Time": time,
+                    "Time": row["onset"],
                     "Amplitude": amp,
+                    "Duration": row.get("duration", 2.0),
                 })
 
         if records_list:
-            aggregated_df = pd.DataFrame(records_list, columns=["Event", "Time", "Amplitude"])
+            aggregated_df = pd.DataFrame(
+                records_list, columns=["Event", "Time", "Amplitude", "Duration"]
+            )
         else:
-            aggregated_df = pd.DataFrame(columns=["Event", "Time", "Amplitude"])
+            aggregated_df = pd.DataFrame(
+                columns=["Event", "Time", "Amplitude", "Duration"]
+            )
 
         new_timing_name = os.path.join(output_path, f"anticipation_scr_amplitude_run-{i}.txt")
         aggregated_df.to_csv(new_timing_name, sep="\t", header=False, index=False)
@@ -156,6 +162,7 @@ def get_pain_rating_scr_timing_file(
 
         events = timing_df[timing_df["condition"].isin(VALID_PAIN_RATING_EVENTS)]["condition"]
         timings = timing_df[timing_df["condition"].isin(VALID_PAIN_RATING_EVENTS)]["onset"]
+        durations = timing_df[timing_df["condition"].isin(VALID_PAIN_RATING_EVENTS)]["duration"]
         global_means = block_df[block_df["Event.Name"].isin(VALID_PAIN_RATING_EVENTS)]["Global.Mean"]
         amp = np.round(global_means, 2)
 
@@ -164,7 +171,8 @@ def get_pain_rating_scr_timing_file(
             "Time": timings.values,
             "Amplitude": amp.values,
             "Rating": pain_ratings_block,
-        }, columns=["Event", "Time", "Amplitude", "Rating"])
+            "Duration": durations.values,
+        }, columns=["Event", "Time", "Amplitude", "Rating", "Duration"])
 
         new_timing_name = os.path.join(output_path, f"post_pain_scr_amplitude_run-{i}.txt")
         aggregated_df.to_csv(new_timing_name, sep="\t", header=False, index=False)
@@ -226,15 +234,17 @@ def get_pain_scr_timing_file(
 
         events = timing_df[timing_df["condition"].isin(VALID_PAIN_EVENTS)]["condition"]
         timings = timing_df[timing_df["condition"].isin(VALID_PAIN_EVENTS)]["onset"]
+        durations = timing_df[timing_df["condition"].isin(VALID_PAIN_EVENTS)]["duration"]
         global_means = block_df[block_df["Event.Name"].isin(VALID_PAIN_EVENTS)]["Global.Mean"]
-        amp = np.round(global_means, 2)
+        amp = np.round(np.sqrt(np.maximum(0, global_means)), 2)
 
         aggregated_df = pd.DataFrame({
             "Event": events.values,
             "Time": timings.values,
             "Amplitude": amp.values,
             "Rating": pain_ratings_block,
-        }, columns=["Event", "Time", "Amplitude", "Rating"])
+            "Duration": durations.values,
+        }, columns=["Event", "Time", "Amplitude", "Rating", "Duration"])
 
         new_timing_name = os.path.join(output_path, f"pain_scr_amplitude_run-{i}.txt")
         aggregated_df.to_csv(new_timing_name, sep="\t", header=False, index=False)
@@ -249,6 +259,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--events_path", default="./", help="Directory containing events TSV files.")
     parser.add_argument("--output_path", default="./", help="Output directory for timing files.")
     parser.add_argument("--blocks", type=int, default=5, help="Number of experimental blocks/runs.")
+    parser.add_argument("--pain_ratings_path", default=None, help="Path to pain ratings CSV file.")
     return parser.parse_args(argv)
 
 
@@ -256,6 +267,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     """CLI entry point for era_to_timing."""
     args = parse_args(argv)
     try:
+        pain_ratings = None
+        if args.pain_ratings_path and os.path.exists(args.pain_ratings_path):
+            ratings_df = pd.read_csv(args.pain_ratings_path)
+            if "Pain" in ratings_df.columns:
+                pain_ratings = ratings_df["Pain"]
+
         get_anticipation_scr_timing_file(
             era_path=args.era_path,
             events_path=args.events_path,
@@ -267,12 +284,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             events_path=args.events_path,
             output_path=args.output_path,
             blocks=args.blocks,
+            pain_ratings=pain_ratings,
         )
         get_pain_rating_scr_timing_file(
             era_path=args.era_path,
             events_path=args.events_path,
             output_path=args.output_path,
             blocks=args.blocks,
+            pain_ratings=pain_ratings,
         )
         return 0
     except Exception as exc:

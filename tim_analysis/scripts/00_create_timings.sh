@@ -146,7 +146,7 @@ for i in $(seq 1 "${RUNS}"); do
     fi
 
     if [[ -f "pain_scr_amplitude_run-${i}.txt" ]] && [[ -f "post_pain_scr_amplitude_run-${i}.txt" ]]; then
-        paste "pain_scr_amplitude_run-${i}.txt" "post_pain_scr_amplitude_run-${i}.txt" | awk -v lag_val="${LAG}" '{print $2 - lag_val"*"$7}' > "timings/pain_post_pain_scr_amp_run-${i}.txt"
+        paste "pain_scr_amplitude_run-${i}.txt" "post_pain_scr_amplitude_run-${i}.txt" | awk -v lag_val="${LAG}" '{ if (NF >= 10) print $2 - lag_val"*"$8; else print $2 - lag_val"*"$7 }' > "timings/pain_post_pain_scr_amp_run-${i}.txt"
         echo $(cat "timings/pain_post_pain_scr_amp_run-${i}.txt") >> timings/pain_post_pain_scr_amp.1D
         rm -f timings/pain_post_pain_scr_amp_run-*.txt
     fi

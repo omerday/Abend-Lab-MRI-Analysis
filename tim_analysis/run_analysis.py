@@ -707,7 +707,7 @@ def _run_single_group_analysis(
 
         group_mask_path = os.path.join(active_output_dir, "group_mask")
         subprocess.run(
-            ["3dmask_tool", "-input"] + mask_files + ["-prefix", group_mask_path, "-frac", "0.4", "-overwrite"],
+            ["3dmask_tool", "-input"] + mask_files + ["-prefix", group_mask_path, "-frac", "0.7", "-overwrite"],
             check=True,
         )
 
