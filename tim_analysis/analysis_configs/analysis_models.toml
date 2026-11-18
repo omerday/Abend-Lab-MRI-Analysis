@@ -82,6 +82,26 @@ sessions = [1]
 contrast = "low_pain#0_Coef"
 setA_label = "LOW_PAIN"
 
+[[sanity_check.group_analyses]]
+name = "lme_pain_level"
+type = "3dLMEr"
+description = "Linear Mixed-Effects model testing the main effect of pain level (low, med, high) with random subject intercepts."
+groups = ["TIM"]
+sessions = [1]
+table_columns = ["pain_level"]
+model = "pain_level+(1|Subj)"
+data_table_rows = [
+    { pain_level = "low", contrast = "low_pain#0_Coef" },
+    { pain_level = "med", contrast = "med_pain#0_Coef" },
+    { pain_level = "high", contrast = "high_pain#0_Coef" },
+]
+glt = [
+    { label = "high_vs_low", sym = "pain_level : 1*high -1*low" },
+    { label = "high_vs_med", sym = "pain_level : 1*high -1*med" },
+    { label = "med_vs_low", sym = "pain_level : 1*med -1*low" },
+    { label = "linear_trend", sym = "pain_level : -1*low + 0*med + 1*high" },
+]
+
 # --- Model: Pain by Rating ---
 # Pain period amplitude modulated by subjective rating.
 [pain_by_rating]
