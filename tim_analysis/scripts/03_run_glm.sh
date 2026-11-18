@@ -22,6 +22,9 @@ CONFIG_FILE="${CONFIG_FILE:-}"
 GLT_LABELS=()
 STIM_LABELS=()
 STIM_PATHS=()
+STIM_TYPES=()
+BASIS=""
+BASIS_MULTI=()
 GLT_ARGS=()
 
 # Parse command-line arguments
@@ -138,10 +141,23 @@ try:
     stim_files = resolved_stim_files
     stim_labels = model.get('stim_labels', [])
     basis = model.get('basis', '')
-    stim_types = model.get('stim_types', '')
+    basis_multi = model.get('basis_multi', [])
+    if isinstance(basis, list):
+        basis_multi = basis
+        basis = ''
+
+    stim_types_raw = model.get('stim_types', [])
+    if isinstance(stim_types_raw, str):
+        stim_types_list = [stim_types_raw] if stim_types_raw else []
+    elif isinstance(stim_types_raw, list):
+        stim_types_list = [str(x) for x in stim_types_raw if x]
+    else:
+        stim_types_list = []
 
     stim_files_str = ' '.join(shlex.quote(s) for s in stim_files)
     stim_labels_str = ' '.join(shlex.quote(s) for s in stim_labels)
+    basis_multi_str = ' '.join(shlex.quote(str(b)) for b in basis_multi)
+    stim_types_str = ' '.join(shlex.quote(s) for s in stim_types_list)
 
     glt_items = []
     glt_labels = []
@@ -158,8 +174,9 @@ try:
     print(f'STIM_PATHS=({stim_files_str})')
     print(f'STIM_LABELS=({stim_labels_str})')
     print(f'GLT_LABELS=({glt_labels_str})')
-    print(f'BASIS={shlex.quote(basis)}')
-    print(f'STIM_TYPES={shlex.quote(stim_types)}')
+    print(f'BASIS={shlex.quote(str(basis))}')
+    print(f'BASIS_MULTI=({basis_multi_str})')
+    print(f'STIM_TYPES=({stim_types_str})')
     print(f'GLT_ARGS=({glt_items_str})')
 except Exception as e:
     sys.stderr.write(str(e) + '\n')
@@ -186,10 +203,21 @@ fi
 mkdir -p "${GLM_OUTPUT_DIR}"
 cd "${GLM_OUTPUT_DIR}"
 
-# Conditionally add stim types
+# Conditionally add stim types (single string or per-regressor array)
 STIM_TYPES_ARG=()
-if [[ -n "${STIM_TYPES}" ]]; then
-    STIM_TYPES_ARG=("-regress_stim_types" "${STIM_TYPES}")
+if [[ ${#STIM_TYPES[@]} -gt 0 ]]; then
+    STIM_TYPES_ARG=("-regress_stim_types" "${STIM_TYPES[@]}")
+fi
+
+# Select per-regressor basis_multi or scalar basis
+BASIS_ARG=()
+if [[ ${#BASIS_MULTI[@]} -gt 0 ]]; then
+    BASIS_ARG=("-regress_basis_multi" "${BASIS_MULTI[@]}")
+elif [[ -n "${BASIS}" ]]; then
+    BASIS_ARG=("-regress_basis" "${BASIS}")
+else
+    log_error "Neither 'basis' nor 'basis_multi' specified for model '${ANALYSIS_NAME}' in ${CONFIG_FILE}"
+    exit 1
 fi
 
 # Run afni_proc.py for the GLM
@@ -200,7 +228,7 @@ afni_proc.py \
     "${REGRESS_STIM_TIMES_ARGS[@]}" \
     "${REGRESS_STIM_LABELS_ARGS[@]}" \
     ${STIM_TYPES_ARG[@]+"${STIM_TYPES_ARG[@]}"} \
-    -regress_basis "${BASIS}" \
+    "${BASIS_ARG[@]}" \
     -regress_opts_3dD -jobs 8 ${GLT_ARGS[@]+"${GLT_ARGS[@]}"} \
     -regress_motion_file "${PREPROC_DIR}/dfile_rall.1D" \
     -regress_motion_per_run \
@@ -277,7 +305,7 @@ if [[ ${#GLT_LABELS[@]} -gt 0 ]]; then
             -thr_olay_pside     bisided                             \
             -olay_alpha         Yes                                 \
             -olay_boxed         Yes                                 \
-            -set_subbricks      -1 "${glt}_GLT#0_Tstat" "${glt}_GLT#0_Tstat" \
+            -set_subbricks      -1 "${glt}_GLT#0_Coef" "${glt}_GLT#0_Tstat" \
             -set_dicom_xyz      -20 -8 -16                          \
             -delta_slices       6 15 10                             \
             -opacity            5                                   \

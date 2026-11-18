@@ -229,16 +229,20 @@ def create_glm_results_pdf(
     pdf = PDF(title=title, subject_info=subject_info)
     pdf.add_page()
 
+    basis_val = model_config.get("basis") or model_config.get("basis_multi", "N/A")
+    if isinstance(basis_val, list):
+        basis_val = ", ".join(str(b) for b in basis_val)
+
     pdf.section_title("Analysis Model Summary")
     pdf.section_body(
         f"Description: {model_config.get('description', 'N/A')}\n"
-        f"Basis Function: {model_config.get('basis', 'N/A')}"
+        f"Basis Function: {basis_val}"
     )
 
     image_groups: Dict[str, List[str]] = {}
     for image_path in images:
         filename = os.path.basename(image_path)
-        prefix = re.split(r"[._]", filename)[0]
+        prefix = filename.split(".")[0]
         if prefix not in image_groups:
             image_groups[prefix] = []
         image_groups[prefix].append(image_path)

@@ -272,3 +272,235 @@ basis = "BLOCK(4,1)"
 stim_types = "AM2"
 requires_scr = false
 glt = []
+
+# --- Model 1: Dry Pain-Centric Model ---
+[dry_pain_model]
+description = "Pain-centric dry GLM: 3 pain levels (6s), 1 collapsed dmUBLOCK anticipation (8-9s), 1 post-pain ITI & rating (9s)."
+stim_files = [
+    "timings/low_temp_pain.1D",
+    "timings/med_temp_pain.1D",
+    "timings/high_temp_pain.1D",
+    "timings/all_antic_dm.1D",
+    "timings/post_pain.1D",
+]
+stim_labels = [
+    "low_pain",
+    "med_pain",
+    "high_pain",
+    "antic_all",
+    "post_pain",
+]
+stim_types = ["times", "times", "times", "AM1", "times"]
+basis_multi = [
+    "BLOCK(6,1)",
+    "BLOCK(6,1)",
+    "BLOCK(6,1)",
+    "dmUBLOCK(-8.5)",
+    "BLOCK(9,1)",
+]
+requires_scr = false
+glt = [
+    { sym = "high_pain -low_pain", label = "high-low-pain" },
+    { sym = "high_pain -med_pain", label = "high-med-pain" },
+    { sym = "med_pain -low_pain", label = "med-low-pain" },
+    { sym = "+0.333*low_pain +0.333*med_pain +0.333*high_pain", label = "all-pain-mean" },
+]
+
+[[dry_pain_model.group_analyses]]
+name = "high-low-pain"
+type = "3dttest++"
+description = "One-sample t-test for high pain minus low pain contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high-low-pain_GLT#0_Coef"
+setA_label = "HIGH_VS_LOW"
+
+[[dry_pain_model.group_analyses]]
+name = "high-med-pain"
+type = "3dttest++"
+description = "One-sample t-test for high pain minus med pain contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high-med-pain_GLT#0_Coef"
+setA_label = "HIGH_VS_MED"
+
+[[dry_pain_model.group_analyses]]
+name = "med-low-pain"
+type = "3dttest++"
+description = "One-sample t-test for med pain minus low pain contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "med-low-pain_GLT#0_Coef"
+setA_label = "MED_VS_LOW"
+
+[[dry_pain_model.group_analyses]]
+name = "all-pain-mean"
+type = "3dttest++"
+description = "One-sample t-test for mean pain across all pain levels."
+groups = ["TIM"]
+sessions = [1]
+contrast = "all-pain-mean_GLT#0_Coef"
+setA_label = "ALL_PAIN_MEAN"
+
+[[dry_pain_model.group_analyses]]
+name = "high_pain"
+type = "3dttest++"
+description = "One-sample t-test for high pain condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high_pain#0_Coef"
+setA_label = "HIGH_PAIN"
+
+[[dry_pain_model.group_analyses]]
+name = "med_pain"
+type = "3dttest++"
+description = "One-sample t-test for medium pain condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "med_pain#0_Coef"
+setA_label = "MED_PAIN"
+
+[[dry_pain_model.group_analyses]]
+name = "low_pain"
+type = "3dttest++"
+description = "One-sample t-test for low pain condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "low_pain#0_Coef"
+setA_label = "LOW_PAIN"
+
+[[dry_pain_model.group_analyses]]
+name = "lme_pain_level"
+type = "3dLMEr"
+description = "Linear Mixed-Effects model testing the main effect of pain level (low, med, high) with random subject intercepts."
+groups = ["TIM"]
+sessions = [1]
+table_columns = ["pain_level"]
+model = "pain_level+(1|Subj)"
+data_table_rows = [
+    { pain_level = "low", contrast = "low_pain#0_Coef" },
+    { pain_level = "med", contrast = "med_pain#0_Coef" },
+    { pain_level = "high", contrast = "high_pain#0_Coef" },
+]
+glt = [
+    { label = "high_vs_low", sym = "pain_level : 1*high -1*low" },
+    { label = "high_vs_med", sym = "pain_level : 1*high -1*med" },
+    { label = "med_vs_low", sym = "pain_level : 1*med -1*low" },
+    { label = "linear_trend", sym = "pain_level : -1*low + 0*med + 1*high" },
+]
+
+# --- Model 2: Dry Anticipation-Centric Model ---
+[dry_anticipation_model]
+description = "Anticipation-centric dry GLM: 3 dmUBLOCK anticipation levels (8-9s), 1 collapsed pain (6s), 1 post-pain ITI & rating (9s)."
+stim_files = [
+    "timings/low_antic_dm.1D",
+    "timings/med_antic_dm.1D",
+    "timings/high_antic_dm.1D",
+    "timings/all_pain.1D",
+    "timings/post_pain.1D",
+]
+stim_labels = [
+    "low_antic",
+    "med_antic",
+    "high_antic",
+    "pain_all",
+    "post_pain",
+]
+stim_types = ["AM1", "AM1", "AM1", "times", "times"]
+basis_multi = [
+    "dmUBLOCK(-8.5)",
+    "dmUBLOCK(-8.5)",
+    "dmUBLOCK(-8.5)",
+    "BLOCK(6,1)",
+    "BLOCK(9,1)",
+]
+requires_scr = false
+glt = [
+    { sym = "high_antic -low_antic", label = "high-low-antic" },
+    { sym = "high_antic -med_antic", label = "high-med-antic" },
+    { sym = "med_antic -low_antic", label = "med-low-antic" },
+    { sym = "+0.333*low_antic +0.333*med_antic +0.333*high_antic", label = "all-antic-mean" },
+]
+
+[[dry_anticipation_model.group_analyses]]
+name = "high-low-antic"
+type = "3dttest++"
+description = "One-sample t-test for high anticipation minus low anticipation contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high-low-antic_GLT#0_Coef"
+setA_label = "HIGH_VS_LOW"
+
+[[dry_anticipation_model.group_analyses]]
+name = "high-med-antic"
+type = "3dttest++"
+description = "One-sample t-test for high anticipation minus med anticipation contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high-med-antic_GLT#0_Coef"
+setA_label = "HIGH_VS_MED"
+
+[[dry_anticipation_model.group_analyses]]
+name = "med-low-antic"
+type = "3dttest++"
+description = "One-sample t-test for med anticipation minus low anticipation contrast."
+groups = ["TIM"]
+sessions = [1]
+contrast = "med-low-antic_GLT#0_Coef"
+setA_label = "MED_VS_LOW"
+
+[[dry_anticipation_model.group_analyses]]
+name = "all-antic-mean"
+type = "3dttest++"
+description = "One-sample t-test for mean anticipation across all anticipation levels."
+groups = ["TIM"]
+sessions = [1]
+contrast = "all-antic-mean_GLT#0_Coef"
+setA_label = "ALL_ANTIC_MEAN"
+
+[[dry_anticipation_model.group_analyses]]
+name = "high_antic"
+type = "3dttest++"
+description = "One-sample t-test for high anticipation condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "high_antic#0_Coef"
+setA_label = "HIGH_ANTIC"
+
+[[dry_anticipation_model.group_analyses]]
+name = "med_antic"
+type = "3dttest++"
+description = "One-sample t-test for medium anticipation condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "med_antic#0_Coef"
+setA_label = "MED_ANTIC"
+
+[[dry_anticipation_model.group_analyses]]
+name = "low_antic"
+type = "3dttest++"
+description = "One-sample t-test for low anticipation condition vs baseline."
+groups = ["TIM"]
+sessions = [1]
+contrast = "low_antic#0_Coef"
+setA_label = "LOW_ANTIC"
+
+[[dry_anticipation_model.group_analyses]]
+name = "lme_antic_level"
+type = "3dLMEr"
+description = "Linear Mixed-Effects model testing the main effect of anticipation level (low, med, high) with random subject intercepts."
+groups = ["TIM"]
+sessions = [1]
+table_columns = ["antic_level"]
+model = "antic_level+(1|Subj)"
+data_table_rows = [
+    { antic_level = "low", contrast = "low_antic#0_Coef" },
+    { antic_level = "med", contrast = "med_antic#0_Coef" },
+    { antic_level = "high", contrast = "high_antic#0_Coef" },
+]
+glt = [
+    { label = "high_vs_low", sym = "antic_level : 1*high -1*low" },
+    { label = "high_vs_med", sym = "antic_level : 1*high -1*med" },
+    { label = "med_vs_low", sym = "antic_level : 1*med -1*low" },
+    { label = "linear_trend", sym = "antic_level : -1*low + 0*med + 1*high" },
+]

@@ -90,6 +90,7 @@ for i in $(seq 1 "${RUNS}"); do
     awk -v lag_val="${LAG}" '{if ($3=="81") {printf $1 - lag_val"*8 "}}' "${TSV_FILE}" >> "timings/amp_square_onset_run${i}.txt"
     if [[ -f "timings/amp_square_onset_run${i}.txt" ]]; then
         echo $(cat "timings/amp_square_onset_run${i}.txt") >> timings/amp_square_onset.1D
+        rm -f "timings/amp_square_onset_run${i}.txt"
     fi
 
     # Timed events - pre heat
@@ -103,12 +104,36 @@ for i in $(seq 1 "${RUNS}"); do
     awk -v lag_val="${LAG}" '{if ($3=="85") {printf $1 - lag_val"*8 "}}' "${TSV_FILE}" >> "timings/amp_pre_pain_run${i}.txt"
     if [[ -f "timings/amp_pre_pain_run${i}.txt" ]]; then
         echo $(cat "timings/amp_pre_pain_run${i}.txt") >> timings/amp_pre_pain.1D
+        rm -f "timings/amp_pre_pain_run${i}.txt"
     fi
 
     # Timed events - heat
     awk -v lag_val="${LAG}" '{if ($3=="26") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/low_temp_pain_run${i}.txt"
     awk -v lag_val="${LAG}" '{if ($3=="46") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/med_temp_pain_run${i}.txt"
     awk -v lag_val="${LAG}" '{if ($3=="86") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/high_temp_pain_run${i}.txt"
+    awk -v lag_val="${LAG}" '{if ($3=="26" || $3=="46" || $3=="86") {print $1 - lag_val, $2, 1}}' "${TSV_FILE}" > "timings/all_pain_run${i}.txt"
+
+    # Timed events - post-pain ITI and pain rating combined (9s block starting 2s before rating event [2/4/8]7)
+    awk -v lag_val="${LAG}" '{if ($3=="27" || $3=="47" || $3=="87") {print $1 - 2 - lag_val, 9, 1}}' "${TSV_FILE}" > "timings/post_pain_run${i}.txt"
+
+    # Duration-modulated anticipation events (cue onset [2/4/8]1 until pain onset [2/4/8]6)
+    awk -v lag_val="${LAG}" '
+        $3=="21" || $3=="41" || $3=="81" { cue_onset = $1 - lag_val; raw_cue = $1 }
+        ($3=="26" || $3=="46" || $3=="86") && raw_cue != "" {
+            tok = sprintf("%s:%g", cue_onset, $1 - raw_cue)
+            all_dm = (all_dm ? all_dm " " : "") tok
+            if ($3=="26") low_dm = (low_dm ? low_dm " " : "") tok
+            if ($3=="46") med_dm = (med_dm ? med_dm " " : "") tok
+            if ($3=="86") high_dm = (high_dm ? high_dm " " : "") tok
+            raw_cue = ""
+        }
+        END {
+            if (low_dm != "")  print low_dm  >> "timings/low_antic_dm.1D"
+            if (med_dm != "")  print med_dm  >> "timings/med_antic_dm.1D"
+            if (high_dm != "") print high_dm >> "timings/high_antic_dm.1D"
+            if (all_dm != "")  print all_dm  >> "timings/all_antic_dm.1D"
+        }
+    ' "${TSV_FILE}"
 
     # Amplitude events - heat
     awk -v lag_val="${LAG}" '{if ($3=="26") {printf $1 - lag_val"*2 "}}' "${TSV_FILE}" >> "timings/amp_pain_run${i}.txt"
@@ -116,6 +141,7 @@ for i in $(seq 1 "${RUNS}"); do
     awk -v lag_val="${LAG}" '{if ($3=="86") {printf $1 - lag_val"*8 "}}' "${TSV_FILE}" >> "timings/amp_pain_run${i}.txt"
     if [[ -f "timings/amp_pain_run${i}.txt" ]]; then
         echo $(cat "timings/amp_pain_run${i}.txt") >> timings/amp_pain.1D
+        rm -f "timings/amp_pain_run${i}.txt"
     fi
 
     # SCR and Rating amplitude files
@@ -154,7 +180,7 @@ done
 
 # Convert to AFNI format using timing_tool.py
 cd timings
-for prefix in low_temp_pre_pain med_temp_pre_pain high_temp_pre_pain low_temp_pain med_temp_pain high_temp_pain green_square_onset yellow_square_onset red_square_onset; do
+for prefix in low_temp_pre_pain med_temp_pre_pain high_temp_pre_pain low_temp_pain med_temp_pain high_temp_pain all_pain post_pain green_square_onset yellow_square_onset red_square_onset; do
     if compgen -G "${prefix}*.txt" > /dev/null; then
         timing_tool.py -fsl_timing_files ${prefix}*.txt -write_timing "${prefix}.1D"
         rm -f ${prefix}*.txt
