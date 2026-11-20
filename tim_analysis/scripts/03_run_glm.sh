@@ -234,7 +234,6 @@ afni_proc.py \
     -regress_motion_per_run \
     -regress_censor_motion 0.5 \
     -regress_censor_outliers 0.05 \
-    -regress_reml_exec \
     -regress_no_mask \
     -regress_compute_fitts \
     -regress_make_ideal_sum sum_ideal.1D \
