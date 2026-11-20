@@ -448,7 +448,7 @@ def process_subject(
         steps_to_run = expand_steps(args.step)
 
         needs_raw_input = any(s in steps_to_run for s in ["create_timings", "preprocess_anat", "preprocess_func"])
-        if needs_raw_input or is_gcs_uri(main_config["input_dir"]):
+        if needs_raw_input:
             try:
                 active_input_dir = stage_in_subject_input(
                     subject_id=subject_id,
@@ -457,10 +457,12 @@ def process_subject(
                     console=console,
                 )
             except FileNotFoundError as exc:
-                if needs_raw_input:
-                    console.log(f"[bold red]Error staging input for {subject_id}:[/] {exc}")
-                    return False
-                active_input_dir = os.path.join(scratch_root, "input")
+                console.log(f"[bold red]Error staging input for {subject_id}:[/] {exc}")
+                return False
+        elif is_gcs_uri(main_config["input_dir"]):
+            # GLM-only runs with a GCS input_dir do not need raw BIDS zips;
+            # point active_input_dir to local scratch so staged timings can mirror cleanly.
+            active_input_dir = os.path.join(scratch_root, "input")
         else:
             active_input_dir = main_config["input_dir"]
 

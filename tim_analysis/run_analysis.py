@@ -457,7 +457,7 @@ def process_subject(
         steps_to_run = expand_steps(args.step)
 
         needs_raw_input = any(s in steps_to_run for s in ["create_timings", "preprocess_anat", "preprocess_func"])
-        if needs_raw_input or is_gcs_uri(main_config["input_dir"]):
+        if needs_raw_input:
             try:
                 active_input_dir = stage_in_subject_input(
                     subject_id=subject_id,
@@ -466,10 +466,12 @@ def process_subject(
                     console=console,
                 )
             except FileNotFoundError as exc:
-                if needs_raw_input:
-                    console.log(f"[bold red]Error staging input for {subject_id}:[/] {exc}")
-                    return False
-                active_input_dir = os.path.join(scratch_root, "input")
+                console.log(f"[bold red]Error staging input for {subject_id}:[/] {exc}")
+                return False
+        elif is_gcs_uri(main_config["input_dir"]):
+            # GLM-only runs with a GCS input_dir do not need raw BIDS zips;
+            # point active_input_dir to local scratch so staged timings can mirror cleanly.
+            active_input_dir = os.path.join(scratch_root, "input")
         else:
             active_input_dir = main_config["input_dir"]
 
@@ -618,6 +620,7 @@ def _run_single_group_analysis(
     analysis_name: str,
     f_level_model: Dict[str, Any],
     group_model_config: Dict[str, Any],
+    cleanup_group_inputs: bool = True,
 ) -> bool:
     """Runs a single group-level analysis configuration."""
     group_model_name = group_model_config["name"]
@@ -861,7 +864,8 @@ def _run_single_group_analysis(
         if (active_output_dir != perm_output_dir or is_gcs_uri(perm_output_dir)) and config.get("cleanup_scratch", True):
             console.log("[dim]Cleaning local group analysis scratch...[/]")
             shutil.rmtree(active_output_dir, ignore_errors=True)
-            shutil.rmtree(os.path.join(scratch_root, "group_inputs"), ignore_errors=True)
+            if cleanup_group_inputs:
+                shutil.rmtree(os.path.join(scratch_root, "group_inputs"), ignore_errors=True)
 
 
 def run_group_analysis(
@@ -891,11 +895,21 @@ def run_group_analysis(
 
     if args.group_model == "all" and not any(g["name"] == "all" for g in group_analyses):
         console.print(Panel(f"Group Analysis: Running all {len(group_analyses)} model(s) for [bold cyan]{analysis_name}[/]", style="bold blue"))
+        scratch_root = getattr(args, "scratch_dir", None) or config.get("scratch_dir", "/tmp/afni_scratch")
         overall_success = True
-        for g_cfg in group_analyses:
-            success = _run_single_group_analysis(args, config, analysis_name, f_level_model, g_cfg)
-            if not success:
-                overall_success = False
+        try:
+            for g_cfg in group_analyses:
+                success = _run_single_group_analysis(
+                    args, config, analysis_name, f_level_model, g_cfg, cleanup_group_inputs=False
+                )
+                if not success:
+                    overall_success = False
+        finally:
+            if config.get("cleanup_scratch", True):
+                group_inputs_dir = os.path.join(scratch_root, "group_inputs")
+                if os.path.exists(group_inputs_dir):
+                    console.log("[dim]Cleaning shared local group_inputs scratch...[/]")
+                    shutil.rmtree(group_inputs_dir, ignore_errors=True)
         return overall_success
 
     group_model_config = next(
