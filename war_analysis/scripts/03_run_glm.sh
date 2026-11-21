@@ -197,6 +197,7 @@ afni_proc.py \
     -regress_motion_per_run \
     -regress_censor_motion 0.5 \
     -regress_censor_outliers 0.05 \
+    -regress_reml_exec \
     -regress_no_mask \
     -regress_compute_fitts \
     -regress_make_ideal_sum sum_ideal.1D \
@@ -251,3 +252,13 @@ for stim in "${STIM_LABELS[@]}"; do
         -montx 3 -monty 3                                       \
         -label_mode 1 -label_size 4
 done
+
+# Clean up heavy redundant GLM intermediates (keeping stats, masked_stats, errts, X.*, and QC)
+if [[ -d "${RESULTS_DIR}" ]]; then
+    log_info "Removing redundant GLM intermediates (pb00, all_runs, fitts, blur_for_qc) to save storage space..."
+    rm -f "${RESULTS_DIR}"/pb00.* \
+          "${RESULTS_DIR}"/all_runs.* \
+          "${RESULTS_DIR}"/fitts.* \
+          "${RESULTS_DIR}"/*_blur_for_qc.nii.gz \
+          "${RESULTS_DIR}"/rm.*
+fi

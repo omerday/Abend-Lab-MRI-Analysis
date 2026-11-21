@@ -20,6 +20,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV PYTHONUNBUFFERED=1
+ENV AFNI_COMPRESSOR=GZIP
 
 # 1. Install system utilities, Xvfb, wkhtmltopdf, R packages for 3dLMEr, and Google Cloud CLI
 RUN apt-get update && apt-get install -y --no-install-recommends \
